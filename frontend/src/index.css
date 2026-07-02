@@ -1,0 +1,192 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  /* ── Base Backgrounds ─────────────────────────────── */
+  --bg-base:        #F8FAFC;   /* page background */
+  --bg-surface:     #FFFFFF;   /* cards, panels */
+  --bg-elevated:    #F1F5F9;   /* modals, dropdowns */
+  --bg-hover:       #F1F5F9;   /* row/item hover */
+
+  /* ── Brand ────────────────────────────────────────── */
+  --brand-primary:  #2563EB;   /* primary blue — CTAs, links, active state */
+  --brand-glow:     #1D4ED8;   /* darker shade for pressed state */
+  --brand-subtle:   #EFF6FF;   /* very subtle blue tint for highlights */
+
+  /* ── Status Colors ────────────────────────────────── */
+  --status-overdue:    #EF4444;   /* Critical / Overdue   — Red 500     */
+  --status-due-soon:   #F59E0B;   /* Warning / Due Soon   — Amber 500   */
+  --status-at-risk:    #F97316;   /* At Risk              — Orange 500  */
+  --status-upcoming:   #22C55E;   /* Success / Upcoming   — Green 500   */
+  --status-completed:  #3B82F6;   /* Information/Done     — Blue 500    */
+
+  /* ── Text ─────────────────────────────────────────── */
+  --text-primary:   #0F172A;   /* main content */
+  --text-secondary: #64748B;   /* labels, metadata — Slate 500 */
+  --text-muted:     #94A3B8;   /* placeholder, dividers */
+
+  /* ── Borders ──────────────────────────────────────── */
+  --border-default: #E5E7EB;
+  --border-subtle:  #F1F5F9;
+
+  /* ── Sidebar ──────────────────────────────────────── */
+  --sidebar-bg:         #0F172A;
+  --sidebar-active-bg:  #2563EB;
+  --sidebar-width:      240px;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: 'cv02', 'cv03', 'cv04';
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code, pre {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+/* ─── Custom Scrollbar ─────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #CBD5E1;
+}
+
+/* ─── Shimmer Skeleton ──────────────────────────────── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #F1F5F9 25%, #E2E8F0 50%, #F1F5F9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite linear;
+}
+
+/* ─── Page Transitions ──────────────────────────────── */
+.page-transition {
+  animation: fadeInSlide 0.22s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes fadeInSlide {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ─── Stat Card Counter Animation ──────────────────── */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-count {
+  animation: countUp 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ─── Glow Pulse (brand accent) ────────────────────── */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+  50%       { box-shadow: 0 0 16px 3px rgba(37, 99, 235, 0.14); }
+}
+.animate-glow-pulse {
+  animation: glowPulse 2.4s ease-in-out infinite;
+}
+
+/* ─── Floating gradient orbs (login bg) ────────────── */
+@keyframes floatOrb {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(30px, -20px) scale(1.06); }
+  66%       { transform: translate(-20px, 15px) scale(0.96); }
+}
+.animate-float-orb {
+  animation: floatOrb 12s ease-in-out infinite;
+}
+.animate-float-orb-slow {
+  animation: floatOrb 18s ease-in-out infinite reverse;
+}
+
+/* ─── Slide-in Drawer ───────────────────────────────── */
+@keyframes slideInRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+.drawer-enter {
+  animation: slideInRight 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* ─── Status badge pulse (overdue) ─────────────────── */
+@keyframes overdueFlash {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+.animate-overdue {
+  animation: overdueFlash 1.8s ease-in-out infinite;
+}
+
+/* ─── Brand gradient text ───────────────────────────── */
+.brand-gradient-text {
+  background: linear-gradient(135deg, #2563EB 0%, #3B82F6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Glass card ────────────────────────────────────── */
+.glass-card {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(229, 231, 235, 0.8);
+}
+
+/* ─── Stat card hover lift ──────────────────────────── */
+.stat-card {
+  transition: transform 0.2s cubic-bezier(0.4,0,0.2,1),
+              border-color 0.2s,
+              box-shadow 0.2s;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+/* ─── Table row highlight ───────────────────────────── */
+tbody tr {
+  transition: background-color 0.12s ease;
+}
+
+/* ─── Focus ring ────────────────────────────────────── */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+}
+
+/* ─── Compliance score ring animation ───────────────── */
+.score-ring {
+  transition: stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1);
+}
