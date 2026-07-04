@@ -1,7 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from app.core.db import get_db
 from app.core.security import verify_password, create_access_token, get_password_hash
 from app.core.dependencies import get_current_user
 from app.models.user import User
@@ -10,9 +7,8 @@ from app.schemas.user import LoginRequest, TokenResponse, UserResponse, UserCrea
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=TokenResponse)
-async def login(login_data: LoginRequest, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).filter(User.email == login_data.email))
-    user = result.scalars().first()
+async def login(login_data: LoginRequest):
+    user = await User.find_one(User.email == login_data.email)
     
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
@@ -39,13 +35,12 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 @router.post("/logout")
 async def logout():
-    # Stateless JWT logout is client-controlled, but returns status acknowledgement
     return {"message": "Logged out successfully"}
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).filter(User.email == user_in.email))
-    if result.scalars().first():
+async def register(user_in: UserCreate):
+    existing = await User.find_one(User.email == user_in.email)
+    if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
         
     hashed_password = get_password_hash(user_in.password)
@@ -56,9 +51,7 @@ async def register(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
         role=user_in.role or "staff",
         is_active=True
     )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
+    await user.insert()
     
     access_token = create_access_token(subject=user.id, role=user.role)
     return {

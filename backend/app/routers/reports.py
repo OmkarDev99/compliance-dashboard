@@ -1,39 +1,32 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
-from sqlalchemy import func
 import uuid
 from typing import List
-from app.core.db import get_db
 from app.core.dependencies import get_current_user
 from app.models.company import Company
 from app.models.task import Task
 from app.models.user import User
+from app.models.audit_log import AuditLog
 from app.schemas.report import SummaryReportResponse, CompanyReportResponse, UserTasksReport
+from app.schemas.task import AuditLogMinResponse, UserMinResponse
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 @router.get("/summary", response_model=SummaryReportResponse)
 async def get_summary_report(
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     # Total Active Companies
-    comp_query = select(func.count(Company.id)).filter(Company.is_active == True)
-    comp_result = await db.execute(comp_query)
-    total_companies = comp_result.scalar() or 0
+    total_companies = await Company.find({"is_active": True}).count()
     
     # Task Counts
-    task_count_query = select(Task.status, func.count(Task.id)).group_by(Task.status)
-    task_count_result = await db.execute(task_count_query)
+    tasks = await Task.find_all().to_list()
     
     counts = {"overdue": 0, "due_soon": 0, "upcoming": 0, "completed": 0, "total": 0}
-    for row in task_count_result.all():
-        st = row[0]
-        cnt = row[1]
+    for t in tasks:
+        st = t.status
         if st in counts:
-            counts[st] = cnt
-            counts["total"] += cnt
+            counts[st] += 1
+            counts["total"] += 1
             
     return {
         "total_companies": total_companies,
@@ -46,24 +39,20 @@ async def get_summary_report(
 @router.get("/company/{company_id}", response_model=CompanyReportResponse)
 async def get_company_report(
     company_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    comp_query = select(Company).filter(Company.id == company_id)
-    comp = (await db.execute(comp_query)).scalars().first()
+    comp = await Company.get(company_id)
     if not comp:
         raise HTTPException(status_code=404, detail="Company not found")
         
-    task_query = select(Task.status, func.count(Task.id)).filter(Task.company_id == company_id).group_by(Task.status)
-    task_result = await db.execute(task_query)
+    tasks = await Task.find({"company_id": company_id}).to_list()
     
     counts = {"overdue": 0, "due_soon": 0, "upcoming": 0, "completed": 0, "total": 0}
-    for row in task_result.all():
-        st = row[0]
-        cnt = row[1]
+    for t in tasks:
+        st = t.status
         if st in counts:
-            counts[st] = cnt
-            counts["total"] += cnt
+            counts[st] += 1
+            counts["total"] += 1
             
     score = (counts["completed"] / counts["total"] * 100) if counts["total"] > 0 else 100.0
     
@@ -78,19 +67,14 @@ async def get_company_report(
 
 @router.get("/team", response_model=List[UserTasksReport])
 async def get_team_report(
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    users_query = select(User).filter(User.is_active == True)
-    users = (await db.execute(users_query)).scalars().all()
+    users = await User.find({"is_active": True}).to_list()
     
     reports = []
     for user in users:
-        tot_query = select(func.count(Task.id)).filter(Task.assigned_to == user.id)
-        tot_cnt = (await db.execute(tot_query)).scalar() or 0
-        
-        comp_query = select(func.count(Task.id)).filter(Task.assigned_to == user.id, Task.status == "completed")
-        comp_cnt = (await db.execute(comp_query)).scalar() or 0
+        tot_cnt = await Task.find({"assigned_to": user.id}).count()
+        comp_cnt = await Task.find({"assigned_to": user.id, "status": "completed"}).count()
         
         rate = (comp_cnt / tot_cnt * 100) if tot_cnt > 0 else 100.0
         
@@ -104,45 +88,59 @@ async def get_team_report(
         
     return reports
 
-from app.schemas.task import AuditLogMinResponse
-from sqlalchemy.orm import selectinload
-from app.models.audit_log import AuditLog
-
 @router.get("/audit-logs", response_model=List[AuditLogMinResponse])
 async def get_audit_logs(
     limit: int = 5,
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = (
-        select(AuditLog)
-        .options(selectinload(AuditLog.user))
-        .order_by(AuditLog.created_at.desc())
-        .limit(limit)
-    )
-    result = await db.execute(query)
-    return result.scalars().all()
+    logs = await AuditLog.find().sort("-created_at").limit(limit).to_list()
+    
+    response_logs = []
+    user_cache = {}
+    
+    for log in logs:
+        log_user = None
+        if log.user_id:
+            if log.user_id not in user_cache:
+                u = await User.get(log.user_id)
+                if u:
+                    user_cache[log.user_id] = UserMinResponse(
+                        id=u.id, email=u.email, full_name=u.full_name, role=u.role
+                    )
+                else:
+                    user_cache[log.user_id] = None
+            log_user = user_cache[log.user_id]
+            
+        response_logs.append(
+            AuditLogMinResponse(
+                id=log.id,
+                user_id=log.user_id,
+                action=log.action,
+                entity_type=log.entity_type,
+                entity_id=log.entity_id,
+                action_metadata=log.action_metadata,
+                created_at=log.created_at,
+                user=log_user
+            )
+        )
+    return response_logs
 
 @router.get("/companies", response_model=List[CompanyReportResponse])
 async def get_companies_reports(
-    db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    comp_query = select(Company).filter(Company.is_active == True)
-    companies = (await db.execute(comp_query)).scalars().all()
+    companies = await Company.find({"is_active": True}).to_list()
     
     reports = []
     for comp in companies:
-        task_query = select(Task.status, func.count(Task.id)).filter(Task.company_id == comp.id).group_by(Task.status)
-        task_result = await db.execute(task_query)
+        tasks = await Task.find({"company_id": comp.id}).to_list()
         
         counts = {"overdue": 0, "due_soon": 0, "upcoming": 0, "completed": 0, "total": 0}
-        for row in task_result.all():
-            st = row[0]
-            cnt = row[1]
+        for t in tasks:
+            st = t.status
             if st in counts:
-                counts[st] = cnt
-                counts["total"] += cnt
+                counts[st] += 1
+                counts["total"] += 1
                 
         score = (counts["completed"] / counts["total"] * 100) if counts["total"] > 0 else 100.0
         
@@ -156,5 +154,3 @@ async def get_companies_reports(
         })
         
     return reports
-
-
