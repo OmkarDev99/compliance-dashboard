@@ -1,16 +1,16 @@
+from beanie import Document
+from pydantic import Field
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime
-from sqlalchemy.orm import Mapped, mapped_column
-from app.db.base import Base
 
-class User(Base):
-    __tablename__ = "users"
+class User(Document):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4)
+    email: str
+    hashed_password: str
+    full_name: str | None = None
+    role: str = "staff"  # admin, staff, partner
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
-    hashed_password: Mapped[str] = mapped_column(nullable=False)
-    full_name: Mapped[str] = mapped_column(String(255), nullable=True)
-    role: Mapped[str] = mapped_column(String(50), default="staff", nullable=False)  # admin, staff, partner
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    class Settings:
+        name = "users"

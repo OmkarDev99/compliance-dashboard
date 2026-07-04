@@ -17,12 +17,8 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 // ─── Animated Counter Hook ──────────────────────────────────────────────────
 const useCountUp = (target = 0, duration = 800) => {
   const [count, setCount] = useState(0);
-  const prevTarget = useRef(0);
 
   useEffect(() => {
-    if (target === prevTarget.current) return;
-    prevTarget.current = target;
-
     let start = 0;
     const step = target / (duration / 16);
     const timer = setInterval(() => {

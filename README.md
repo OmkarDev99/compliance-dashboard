@@ -1,4 +1,4 @@
-# CS Compliance Dashboard
+# CS Compliance Dashboard (MongoDB Version)
 
 An enterprise-grade SaaS web platform for Company Secretaries (CS) to track and process Registrar of Companies (ROC) compliance obligations across multiple client firms.
 
@@ -6,9 +6,9 @@ An enterprise-grade SaaS web platform for Company Secretaries (CS) to track and 
 
 ## Technical Architecture
 
-- **Backend:** FastAPI (Python), SQLAlchemy Async ORM, PostgreSQL (via asyncpg), Alembic migrations, and APScheduler background tasks.
+- **Backend:** FastAPI (Python), Beanie ODM (MongoDB Object Document Mapper), Motor async driver, and APScheduler background tasks.
 - **Frontend:** React + Vite, Tailwind CSS v3, React Router v6, TanStack Query v5 (React Query), Axios HTTP, and Recharts.
-- **Local Database:** PostgreSQL.
+- **Database:** MongoDB.
 
 ---
 
@@ -17,7 +17,7 @@ An enterprise-grade SaaS web platform for Company Secretaries (CS) to track and 
 ### Prerequisites
 - Python 3.11+
 - Node.js 20+
-- PostgreSQL 16+ (or Docker)
+- MongoDB Community Server (running locally on port `27017`)
 
 ---
 
@@ -25,7 +25,7 @@ An enterprise-grade SaaS web platform for Company Secretaries (CS) to track and 
 
 #### 1. Setup Backend Database & Run API
 
-Create a PostgreSQL database named `cs_compliance`.
+Ensure your local MongoDB instance is started and running on the default port (`27017`).
 
 ```bash
 # Navigate to backend
@@ -41,7 +41,7 @@ python -m venv venv
 # Install dependencies
 pip install -r requirements.txt
 
-# Run database seed script (it automatically creates tables if they do not exist)
+# Run database seed script (it automatically connects to MongoDB and initializes collections)
 python seed.py
 
 # Start the uvicorn development server
@@ -74,13 +74,3 @@ npm run dev
 - **Staff User 1:** `staff1@csdashboard.com` / `Staff@123`
 - **Staff User 2:** `staff2@csdashboard.com` / `Staff@123`
 - **Partner:** `partner@csdashboard.com` / `Partner@123`
-
----
-
-### Running via Docker Compose
-
-To spin up the entire stack (PostgreSQL, Backend API, and Frontend) in containerized mode:
-
-```bash
-docker-compose up --build
-```

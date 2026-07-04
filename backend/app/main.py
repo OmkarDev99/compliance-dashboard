@@ -4,8 +4,7 @@ from contextlib import asynccontextmanager
 import logging
 
 from app.core.config import settings
-from app.core.db import engine
-from app.db.base import Base
+from app.core.db import init_db
 from app.routers import auth, clients, tasks, admin, reports
 from app.services.scheduler import start_scheduler, shutdown_scheduler
 
@@ -15,11 +14,10 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Ensure tables are created in development
-    logger.info("Initializing database tables...")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database tables initialized successfully.")
+    # Startup: Initialize Beanie MongoDB connection
+    logger.info("Initializing MongoDB connection...")
+    await init_db()
+    logger.info("MongoDB initialized successfully.")
     
     # Start APScheduler compliance checker job
     start_scheduler()

@@ -1,27 +1,34 @@
-from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from motor.motor_asyncio import AsyncIOMotorClient
+from beanie import init_beanie
 from app.core.config import settings
 
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=False,
-    future=True
-)
+# Monkeypatch to prevent "TypeError: MotorDatabase object is not callable" in beanie init
+AsyncIOMotorClient.append_metadata = lambda *args, **kwargs: None
 
-async_session_maker = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-    autocommit=False,
-    autoflush=False
-)
+async def init_db():
+    # Initialize Motor client
+    client = AsyncIOMotorClient(settings.DATABASE_URL)
+    
+    # Import Beanie Document models to initialize them
+    from app.models.user import User
+    from app.models.company import Company
+    from app.models.compliance_rule import ComplianceRule
+    from app.models.task import Task
+    from app.models.audit_log import AuditLog
+    
+    # Initialize Beanie with models
+    database = client.get_default_database()
+    await init_beanie(
+        database=database,
+        document_models=[
+            User,
+            Company,
+            ComplianceRule,
+            Task,
+            AuditLog
+        ]
+    )
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with async_session_maker() as session:
-        try:
-            yield session
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
+# Placeholder/dummy dependency for routers that still expect a db param
+async def get_db():
+    yield None

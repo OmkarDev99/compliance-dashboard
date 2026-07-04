@@ -1,17 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 import uuid
 from typing import List
-from app.core.db import get_db
-from app.core.dependencies import RoleChecker, get_current_user
+from app.core.dependencies import RoleChecker
 from app.core.security import get_password_hash
 from app.models.user import User
 from app.models.compliance_rule import ComplianceRule
 from app.schemas.user import UserResponse, UserCreate, UserUpdate
 from app.schemas.compliance_rule import ComplianceRuleResponse, ComplianceRuleCreate, ComplianceRuleUpdate
 
-# Use Depends(RoleChecker(...)) — this is the correct pattern for router-level role guards
+# Use Depends(RoleChecker(...))
 router = APIRouter(
     prefix="/admin",
     tags=["admin"],
@@ -20,14 +17,14 @@ router = APIRouter(
 
 # Users Management
 @router.get("/users", response_model=List[UserResponse])
-async def list_users(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).order_by(User.created_at.desc()))
-    return result.scalars().all()
+async def list_users():
+    users = await User.find().sort("-created_at").to_list()
+    return users
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).filter(User.email == user_in.email))
-    if result.scalars().first():
+async def create_user(user_in: UserCreate):
+    existing = await User.find_one({"email": user_in.email})
+    if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
         
     hashed_password = get_password_hash(user_in.password)
@@ -38,15 +35,12 @@ async def create_user(user_in: UserCreate, db: AsyncSession = Depends(get_db)):
         role=user_in.role,
         is_active=user_in.is_active
     )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
+    await user.insert()
     return user
 
 @router.put("/users/{user_id}", response_model=UserResponse)
-async def update_user(user_id: uuid.UUID, user_in: UserUpdate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(User).filter(User.id == user_id))
-    user = result.scalars().first()
+async def update_user(user_id: uuid.UUID, user_in: UserUpdate):
+    user = await User.get(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
         
@@ -58,28 +52,24 @@ async def update_user(user_id: uuid.UUID, user_in: UserUpdate, db: AsyncSession 
     for field, value in update_data.items():
         setattr(user, field, value)
         
-    await db.commit()
-    await db.refresh(user)
+    await user.save()
     return user
 
 # Compliance Rules Management
 @router.get("/rules", response_model=List[ComplianceRuleResponse])
-async def list_rules(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ComplianceRule).order_by(ComplianceRule.name.asc()))
-    return result.scalars().all()
+async def list_rules():
+    rules = await ComplianceRule.find().sort("name").to_list()
+    return rules
 
 @router.post("/rules", response_model=ComplianceRuleResponse, status_code=status.HTTP_201_CREATED)
-async def create_rule(rule_in: ComplianceRuleCreate, db: AsyncSession = Depends(get_db)):
+async def create_rule(rule_in: ComplianceRuleCreate):
     rule = ComplianceRule(**rule_in.model_dump())
-    db.add(rule)
-    await db.commit()
-    await db.refresh(rule)
+    await rule.insert()
     return rule
 
 @router.put("/rules/{rule_id}", response_model=ComplianceRuleResponse)
-async def update_rule(rule_id: uuid.UUID, rule_in: ComplianceRuleUpdate, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ComplianceRule).filter(ComplianceRule.id == rule_id))
-    rule = result.scalars().first()
+async def update_rule(rule_id: uuid.UUID, rule_in: ComplianceRuleUpdate):
+    rule = await ComplianceRule.get(rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
         
@@ -87,6 +77,5 @@ async def update_rule(rule_id: uuid.UUID, rule_in: ComplianceRuleUpdate, db: Asy
     for field, value in update_data.items():
         setattr(rule, field, value)
         
-    await db.commit()
-    await db.refresh(rule)
+    await rule.save()
     return rule
