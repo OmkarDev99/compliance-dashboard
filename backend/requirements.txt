@@ -13,5 +13,8 @@ email-validator==2.1.1
 pytz==2024.1
 beanie
 motor
+playwright
+beautifulsoup4
+
 
 
