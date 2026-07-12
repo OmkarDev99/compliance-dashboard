@@ -1,4 +1,4 @@
-# CS Compliance Dashboard (MongoDB Version)
+# CS Compliance Dashboard
 
 An enterprise-grade SaaS web platform for Company Secretaries (CS) to track and process Registrar of Companies (ROC) compliance obligations across multiple client firms.
 
@@ -8,7 +8,8 @@ An enterprise-grade SaaS web platform for Company Secretaries (CS) to track and 
 
 - **Backend:** FastAPI (Python), Beanie ODM (MongoDB Object Document Mapper), Motor async driver, and APScheduler background tasks.
 - **Frontend:** React + Vite, Tailwind CSS v3, React Router v6, TanStack Query v5 (React Query), Axios HTTP, and Recharts.
-- **Database:** MongoDB.
+- **Database:** MongoDB 7.
+- **Regulatory library:** Searchable MCA, ICSI, RBI, Ministry of Labour, and Vayana material loaded from the scraped JSON datasets in `backend/`.
 
 ---
 
@@ -25,7 +26,13 @@ An enterprise-grade SaaS web platform for Company Secretaries (CS) to track and 
 
 #### 1. Setup Backend Database & Run API
 
-Ensure your local MongoDB instance is started and running on the default port (`27017`).
+The simplest setup is Docker Compose, which starts MongoDB, the API, and the frontend together:
+
+```bash
+docker compose up --build
+```
+
+For manual development, ensure MongoDB is running locally on port `27017`.
 
 ```bash
 # Navigate to backend

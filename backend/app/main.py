@@ -5,7 +5,7 @@ import logging
 
 from app.core.config import settings
 from app.core.db import init_db
-from app.routers import auth, clients, tasks, admin, reports
+from app.routers import auth, clients, tasks, admin, reports, regulatory
 from app.services.scheduler import start_scheduler, shutdown_scheduler
 
 # Configure logging
@@ -57,6 +57,7 @@ app.include_router(clients.router)
 app.include_router(tasks.router)
 app.include_router(admin.router)
 app.include_router(reports.router)
+app.include_router(regulatory.router)
 
 @app.get("/")
 async def root():
