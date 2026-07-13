@@ -9,6 +9,7 @@ from app.models.user import User
 from app.schemas.company import CompanyCreate, CompanyUpdate, CompanyResponse, CompanyDetailResponse, TasksSummary
 from app.schemas.task import TaskResponse, CompanyMinResponse, UserMinResponse, AuditLogMinResponse
 from app.services.rule_engine import run_rule_engine_for_company
+import re
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -16,16 +17,34 @@ router = APIRouter(prefix="/companies", tags=["companies"])
 async def get_companies(
     assigned_to: Optional[uuid.UUID] = None,
     is_active: Optional[bool] = None,
+    search: Optional[str] = None,
+    company_type: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
     current_user: User = Depends(get_current_user)
 ):
+    """
+    Retrieve companies with optional filters:
+    - **search**: Partial, case-insensitive match on company name or CIN.
+    - **company_type**: Filter by type (private_limited, public_limited, llp, opc).
+    - **assigned_to**: Filter by assigned staff user ID.
+    - **is_active**: Filter by active/inactive status.
+    """
     query = {}
     if assigned_to is not None:
         query["assigned_to"] = assigned_to
     if is_active is not None:
         query["is_active"] = is_active
-        
+    if company_type is not None:
+        query["company_type"] = company_type
+    if search is not None and search.strip():
+        # Case-insensitive search across both name and CIN fields
+        escaped = re.escape(search.strip())
+        query["$or"] = [
+            {"name": {"$regex": escaped, "$options": "i"}},
+            {"cin": {"$regex": escaped, "$options": "i"}}
+        ]
+
     companies = await Company.find(query).skip(offset).limit(limit).to_list()
     return companies
 
@@ -43,10 +62,20 @@ async def create_company(
         
     company = Company(**company_in.model_dump())
     await company.insert()
-    
+
+    # Log audit: company created
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="company_created",
+        entity_type="company",
+        entity_id=company.id,
+        action_metadata={"cin": company.cin, "name": company.name, "company_type": company.company_type}
+    )
+    await audit.insert()
+
     # Run the rule engine to auto-generate tasks
     await run_rule_engine_for_company(None, company, user_id=current_user.id)
-    
+
     return company
 
 @router.get("/{company_id}", response_model=CompanyDetailResponse)
@@ -98,8 +127,19 @@ async def update_company(
     update_data = company_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(company, field, value)
-        
+
     await company.save()
+
+    # Log audit: company updated
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="company_updated",
+        entity_type="company",
+        entity_id=company.id,
+        action_metadata={"fields_updated": list(update_data.keys())}
+    )
+    await audit.insert()
+
     return company
 
 @router.delete("/{company_id}", response_model=CompanyResponse)
@@ -113,6 +153,17 @@ async def delete_company(
         
     company.is_active = False  # Soft delete
     await company.save()
+
+    # Log audit: company soft-deleted
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="company_deleted",
+        entity_type="company",
+        entity_id=company.id,
+        action_metadata={"cin": company.cin, "name": company.name}
+    )
+    await audit.insert()
+
     return company
 
 @router.get("/{company_id}/tasks", response_model=List[TaskResponse])
