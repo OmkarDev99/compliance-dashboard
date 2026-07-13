@@ -77,7 +77,10 @@ npm run dev
 
 ### Seed Login Credentials
 
+Use the following seeded accounts to log in. Please type them manually into the login form:
+
 - **Administrator:** `admin@csdashboard.com` / `Admin@123`
 - **Staff User 1:** `staff1@csdashboard.com` / `Staff@123`
 - **Staff User 2:** `staff2@csdashboard.com` / `Staff@123`
 - **Partner:** `partner@csdashboard.com` / `Partner@123`
+

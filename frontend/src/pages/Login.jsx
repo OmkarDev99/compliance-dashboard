@@ -1,13 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
-import { Eye, EyeOff, Lock, Mail, AlertTriangle, ShieldCheck, ChevronRight } from 'lucide-react';
-
-const DEMO_USERS = [
-  { label: 'Admin', email: 'admin@csdashboard.com', password: 'Admin@123', role: 'admin', color: 'text-[#EF4444]', bg: 'bg-[#EF4444]/8 border-[#EF4444]/20' },
-  { label: 'Staff', email: 'staff1@csdashboard.com', password: 'Staff@123', role: 'staff', color: 'text-[#22C55E]', bg: 'bg-[#22C55E]/8 border-[#22C55E]/20' },
-  { label: 'Partner', email: 'partner@csdashboard.com', password: 'Partner@123', role: 'partner', color: 'text-[#F59E0B]', bg: 'bg-[#F59E0B]/8 border-[#F59E0B]/20' },
-];
+import { Eye, EyeOff, Lock, Mail, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 const Login = () => {
   const { login, isAuthenticated } = useAuth();
@@ -41,12 +35,6 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const fillCredentials = (demo) => {
-    setEmail(demo.email);
-    setPassword(demo.password);
-    setError('');
   };
 
   return (
@@ -96,24 +84,6 @@ const Login = () => {
             ))}
           </div>
 
-          {/* Demo credential cards */}
-          <div className="space-y-2">
-            <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest">Demo Access</p>
-            <div className="space-y-2">
-              {DEMO_USERS.map((demo, idx) => (
-                <div key={idx}
-                  onClick={() => fillCredentials(demo)}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg border ${demo.bg} cursor-pointer hover:opacity-90 transition-all group`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className={`text-[10px] font-mono font-bold uppercase tracking-wider ${demo.color}`}>{demo.label}</span>
-                    <span className="text-[10px] text-[#64748B] font-mono">{demo.email}</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 text-[#94A3B8] group-hover:text-[#64748B] transition-colors" />
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Right side — login card */}
@@ -209,19 +179,7 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Mobile demo cards */}
-          <div className="lg:hidden mt-6 space-y-2">
-            <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-widest text-center">Quick Demo Access</p>
-            {DEMO_USERS.map((demo, idx) => (
-              <button key={idx}
-                onClick={() => fillCredentials(demo)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border ${demo.bg} transition-all hover:opacity-90`}
-              >
-                <span className={`text-[10px] font-mono font-bold uppercase tracking-wider ${demo.color}`}>{demo.label}</span>
-                <span className="text-[10px] text-[#64748B] font-mono">{demo.email}</span>
-              </button>
-            ))}
-          </div>
+
 
           {/* Footer info */}
           <div className="text-center text-[10px] text-[#94A3B8] mt-6">
