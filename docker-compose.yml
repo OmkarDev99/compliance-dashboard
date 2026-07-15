@@ -1,19 +1,13 @@
-version: '3.8'
-
 services:
   db:
-    image: postgres:16
+    image: mongo:7
     container_name: cs_compliance_db
-    environment:
-      POSTGRES_DB: cs_compliance
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
     ports:
-      - "5432:5432"
+      - "27017:27017"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mongo_data:/data/db
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d cs_compliance"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -31,7 +25,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/cs_compliance
+      - DATABASE_URL=mongodb://db:27017/cs_compliance
 
   frontend:
     build:
@@ -46,4 +40,4 @@ services:
       - backend
 
 volumes:
-  postgres_data:
+  mongo_data:
