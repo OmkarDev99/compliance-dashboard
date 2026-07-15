@@ -1,0 +1,102 @@
+import json
+import re
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+DATA_PATHS = [
+    "/home/priya-manjare/cs_compilance_dashboard/backend/icsi_scrapped_data.json",
+    "/home/priya-manjare/cs_compilance_dashboard/backend/mca_scraped_data.json",
+]
+
+
+def clean_text(text: str) -> str:
+    """Basic cleanup: collapse weird whitespace/newlines from PDF extraction."""
+    if not text:
+        return ""
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def load_data(paths: list) -> list:
+    all_records = []
+    for path in paths:
+        with open(path, "r", encoding="utf-8") as f:
+            records = json.load(f)
+            print(f"  loaded {len(records)} records from {path}")
+            all_records.extend(records)
+    return all_records
+
+
+def build_documents(raw_records: list) -> list:
+    """
+    Convert raw scraped records into a clean, consistent internal format.
+    Every record gets a stable doc_id so we can track it later.
+    """
+    documents = []
+    for i, record in enumerate(raw_records):
+        cleaned_text = clean_text(record.get("full_text", ""))
+
+        if not cleaned_text:
+            continue
+
+        documents.append({
+            "doc_id": f"doc_{i}",
+            "title": record.get("title", "Untitled"),
+            "source": record.get("source", ""),
+            "category": record.get("category", ""),
+            "publication_date": record.get("publication_date") or "unknown",
+            "url": record.get("url", ""),
+            "document_type": record.get("document_type", ""),
+            "keywords": ", ".join(record.get("keywords", [])) or "none",
+            "text": cleaned_text,
+        })
+
+    return documents
+
+
+def chunk_documents(documents: list) -> list:
+    """
+    Splits each document's text into smaller overlapping chunks.
+    Each chunk keeps a reference back to its parent document's metadata.
+    """
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=100,
+        separators=["\n\n", "\n", ". ", " ", ""]
+    )
+
+    all_chunks = []
+    for doc in documents:
+        text_pieces = splitter.split_text(doc["text"])
+
+        for idx, piece in enumerate(text_pieces):
+            all_chunks.append({
+                "chunk_id": f"{doc['doc_id']}_chunk_{idx}",
+                "doc_id": doc["doc_id"],
+                "chunk_index": idx,
+                "text": piece,
+                "title": doc["title"],
+                "source": doc["source"],
+                "category": doc["category"],
+                "publication_date": doc["publication_date"],
+                "url": doc["url"],
+                "document_type": doc["document_type"],
+                "keywords": doc["keywords"],
+            })
+
+    return all_chunks
+
+
+if __name__ == "__main__":
+    raw = load_data(DATA_PATHS)
+    print("Total raw records:", len(raw))
+
+    docs = build_documents(raw)
+    print("Documents after cleaning (non-empty):", len(docs))
+
+    chunks = chunk_documents(docs)
+    print("\nTotal chunks created:", len(chunks))
+
+    print("\nSample chunk:")
+    print("chunk_id:", chunks[0]["chunk_id"])
+    print("title:", chunks[0]["title"])
+    print("text preview:", chunks[0]["text"][:300])
