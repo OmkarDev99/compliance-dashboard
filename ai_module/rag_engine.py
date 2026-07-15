@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from google import genai
 from sentence_transformers import SentenceTransformer
 import chromadb
+import time
 
 load_dotenv()
 
@@ -77,21 +78,61 @@ Answer concisely and cite the source number(s) you used."""
     return prompt
 
 
-def ask_gemini(prompt: str) -> str:
-    response = client.models.generate_content(
-        model=GEMINI_MODEL_NAME,
-        contents=prompt,
-        config={"temperature": 0.2}
-    )
-    return response.text
+def ask_gemini(prompt: str, max_retries: int = 2) -> str:
+    last_error = None
 
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=GEMINI_MODEL_NAME,
+                contents=prompt,
+                config={"temperature": 0.2}
+            )
+            if response.text:
+                return response.text
+            else:
+                raise ValueError("Gemini returned an empty response")
+
+        except Exception as e:
+            last_error = e
+            print(f"Gemini call failed (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2)  # brief pause before retrying
+
+    # all retries failed
+    raise RuntimeError(f"Gemini API failed after {max_retries} attempts: {last_error}")
 
 def get_answer(question: str) -> dict:
     """
     Main entry point: takes a question, returns a dict with answer + sources.
-    This is what the FastAPI endpoint will call.
+    Never raises — always returns a usable response, even on failure.
     """
-    chunks = retrieve_chunks(question)
+    question = question.strip()
+
+    if not question:
+        return {
+            "answer": "Please enter a question.",
+            "sources": [],
+            "confidence": "invalid_input"
+        }
+
+    if len(question) > 500:
+        return {
+            "answer": "Your question is too long. Please keep it under 500 characters.",
+            "sources": [],
+            "confidence": "invalid_input"
+        }
+
+    # Step 1: Retrieval
+    try:
+        chunks = retrieve_chunks(question)
+    except Exception as e:
+        print(f"Retrieval failed: {e}")
+        return {
+            "answer": "The compliance database is temporarily unavailable. Please try again shortly.",
+            "sources": [],
+            "confidence": "error"
+        }
 
     if not chunks:
         return {
@@ -100,9 +141,19 @@ def get_answer(question: str) -> dict:
             "confidence": "not_found"
         }
 
+    # Step 2: Generation
     prompt = build_prompt(question, chunks)
-    answer_text = ask_gemini(prompt)
+    try:
+        answer_text = ask_gemini(prompt)
+    except Exception as e:
+        print(f"Generation failed: {e}")
+        return {
+            "answer": "I found relevant information but couldn't generate a response right now. Please try again in a moment.",
+            "sources": [],
+            "confidence": "error"
+        }
 
+    # Step 3: Build sources list
     seen_urls = set()
     sources = []
     for c in chunks:

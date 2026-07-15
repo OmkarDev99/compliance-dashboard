@@ -43,5 +43,13 @@ def health_check():
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest):
-    result = get_answer(request.question)
-    return result
+    try:
+        result = get_answer(request.question)
+        return result
+    except Exception as e:
+        print(f"Unexpected error in /chat: {e}")
+        return {
+            "answer": "Something went wrong on our end. Please try again.",
+            "sources": [],
+            "confidence": "error"
+        }
