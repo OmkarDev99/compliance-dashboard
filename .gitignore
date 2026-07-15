@@ -1,26 +1,5 @@
-# Python
+venv/
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-pip-log.txt
-.pytest_cache/
+chroma_store/
 .env
-
-# Node
-node_modules/
-dist/
-dist-ssr/
-*.local
-
-# IDEs
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db

@@ -11,6 +11,7 @@ import Dashboard from './pages/Dashboard';
 import ClientList from './pages/ClientList';
 import ClientDetail from './pages/ClientDetail';
 import TaskList from './pages/TaskList';
+import Chat from './pages/Chat';
 import AdminPanel from './pages/AdminPanel';
 import Reports from './pages/Reports';
 import RegulatoryUpdates from './pages/RegulatoryUpdates';
@@ -73,6 +74,7 @@ const AppRoutes = () => {
           <Route path="/clients" element={<ClientList />} />
           <Route path="/clients/:id" element={<ClientDetail />} />
           <Route path="/tasks" element={<TaskList />} />
+          <Route path="/chat" element={<Chat />} />
           <Route path="/regulatory-updates" element={<RegulatoryUpdates />} />
           
           {/* Role Protected Panels */}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { LayoutDashboard, Users, CheckSquare, Settings, BarChart2, LogOut, ShieldCheck, MessageCircle } from 'lucide-react';
 import { LayoutDashboard, Users, CheckSquare, Settings, BarChart2, LogOut, ShieldCheck, BookOpen } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getRoleMeta } from '../utils/roleUtils';
@@ -25,6 +26,7 @@ const Sidebar = () => {
     { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { to: '/clients', label: 'Clients', icon: Users },
     { to: '/tasks', label: 'Tasks', icon: CheckSquare },
+    { to: '/chat', label: 'Compliance Assistant', icon: MessageCircle },
     { to: '/regulatory-updates', label: 'Regulatory Library', icon: BookOpen },
   ];
 

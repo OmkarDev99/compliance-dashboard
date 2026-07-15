@@ -1,12 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import uuid
-from typing import List
+from typing import List, Optional
 from app.core.dependencies import RoleChecker
 from app.core.security import get_password_hash
 from app.models.user import User
 from app.models.compliance_rule import ComplianceRule
+from app.models.audit_log import AuditLog
 from app.schemas.user import UserResponse, UserCreate, UserUpdate
 from app.schemas.compliance_rule import ComplianceRuleResponse, ComplianceRuleCreate, ComplianceRuleUpdate
+from app.schemas.task import AuditLogMinResponse, UserMinResponse
 
 # Use Depends(RoleChecker(...))
 router = APIRouter(
@@ -79,3 +81,61 @@ async def update_rule(rule_id: uuid.UUID, rule_in: ComplianceRuleUpdate):
         
     await rule.save()
     return rule
+
+
+# System-wide Audit Logs
+@router.get("/audit-logs", response_model=List[AuditLogMinResponse])
+async def list_audit_logs(
+    action: Optional[str] = None,
+    entity_type: Optional[str] = None,
+    user_id: Optional[uuid.UUID] = None,
+    limit: int = 50,
+    offset: int = 0
+):
+    """
+    Retrieve system-wide audit logs with optional filters.
+    - **action**: Filter by action type (e.g., task_completed, company_created).
+    - **entity_type**: Filter by entity type (e.g., task, company).
+    - **user_id**: Filter by the user who performed the action.
+    - **limit** / **offset**: Pagination controls.
+    """
+    query = {}
+    if action is not None:
+        query["action"] = action
+    if entity_type is not None:
+        query["entity_type"] = entity_type
+    if user_id is not None:
+        query["user_id"] = user_id
+
+    logs = await AuditLog.find(query).sort("-created_at").skip(offset).limit(limit).to_list()
+
+    response_logs = []
+    user_cache = {}
+
+    for log in logs:
+        log_user = None
+        if log.user_id:
+            if log.user_id not in user_cache:
+                u = await User.get(log.user_id)
+                if u:
+                    user_cache[log.user_id] = UserMinResponse(
+                        id=u.id, email=u.email, full_name=u.full_name, role=u.role
+                    )
+                else:
+                    user_cache[log.user_id] = None
+            log_user = user_cache[log.user_id]
+
+        response_logs.append(
+            AuditLogMinResponse(
+                id=log.id,
+                user_id=log.user_id,
+                action=log.action,
+                entity_type=log.entity_type,
+                entity_id=log.entity_id,
+                action_metadata=log.action_metadata,
+                created_at=log.created_at,
+                user=log_user
+            )
+        )
+
+    return response_logs
