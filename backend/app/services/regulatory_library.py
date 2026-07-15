@@ -11,6 +11,7 @@ DATA_FILES = (
     "rbi_scraped_data.json",
     "labour_scraped_data.json",
     "atlas_vayana_scraped_data.json",
+    "udyam_scraped_data.json",
 )
 
 
