@@ -1,125 +1,90 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, CheckSquare, Settings, BarChart2, LogOut, ShieldCheck, MessageCircle } from 'lucide-react';
-import { LayoutDashboard, Users, CheckSquare, Settings, BarChart2, LogOut, ShieldCheck, BookOpen } from 'lucide-react';
+import {
+  LayoutDashboard, Building2, ListChecks, BookOpen, Settings,
+  BarChart3, LogOut, ShieldCheck, MessageSquareText
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getRoleMeta } from '../utils/roleUtils';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  const getInitials = () => {
-    if (!user) return 'CS';
-    if (user.full_name) {
-      return user.full_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
-    }
-    return user.email.slice(0, 2).toUpperCase();
-  };
+  const links = [
+    { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+    { to: '/clients', label: 'Companies', icon: Building2 },
+    { to: '/tasks', label: 'Obligations', icon: ListChecks },
+    { to: '/regulatory-updates', label: 'Intelligence', icon: BookOpen },
+    { to: '/chat', label: 'Assistant', icon: MessageSquareText },
+  ];
 
-  const handleLogout = () => {
+  if (user?.role === 'admin') {
+    links.push({ to: '/reports', label: 'Reports', icon: BarChart3 });
+    links.push({ to: '/admin', label: 'Administration', icon: Settings });
+  } else if (user?.role === 'partner') {
+    links.push({ to: '/reports', label: 'Reports', icon: BarChart3 });
+  }
+
+  const initials = (user?.full_name || user?.email || 'CS')
+    .split(/[\s@]+/).filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+
+  const signOut = () => {
     logout();
     navigate('/login');
   };
 
-  const links = [
-    { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/clients', label: 'Clients', icon: Users },
-    { to: '/tasks', label: 'Tasks', icon: CheckSquare },
-    { to: '/chat', label: 'Compliance Assistant', icon: MessageCircle },
-    { to: '/regulatory-updates', label: 'Regulatory Library', icon: BookOpen },
-  ];
-
-  if (user?.role === 'admin') {
-    links.push(
-      { to: '/admin', label: 'Admin Panel', icon: Settings },
-      { to: '/reports', label: 'Reports', icon: BarChart2 }
-    );
-  } else if (user?.role === 'partner') {
-    links.push({ to: '/reports', label: 'Reports', icon: BarChart2 });
-  }
-
-  const roleMeta = getRoleMeta(user?.role);
+  const linkClass = ({ isActive }) => `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all ${
+    isActive
+      ? 'bg-white text-[#101828] shadow-[0_8px_24px_rgba(5,12,25,0.18)]'
+      : 'text-slate-400 hover:bg-white/[0.06] hover:text-white'
+  }`;
 
   return (
-    <div className="w-[240px] h-screen bg-[#0F172A] border-r border-[#1E293B] flex flex-col fixed left-0 top-0 shrink-0 z-40">
-      {/* Logo */}
-      <div className="h-14 border-b border-[#1E293B] flex items-center px-5 gap-2.5">
-        <div className="w-7 h-7 bg-[#2563EB] rounded-lg flex items-center justify-center shadow-md shadow-[#2563EB]/30 shrink-0">
-          <ShieldCheck className="w-4 h-4 text-white" />
+    <>
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[236px] flex-col bg-[#0B1220] px-3 py-4 lg:flex">
+        <div className="flex h-12 items-center gap-3 px-2">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#6D8EFF] to-[#3157D5] shadow-lg shadow-blue-950/30">
+            <ShieldCheck className="h-[18px] w-[18px] text-white" />
+          </div>
+          <div>
+            <p className="text-[13px] font-semibold tracking-wide text-white">CS Command</p>
+            <p className="text-[10px] text-slate-500">Compliance workspace</p>
+          </div>
         </div>
-        <div>
-          <span className="text-white font-mono font-bold text-sm tracking-wider block leading-tight">
-            CS DASHBOARD
-          </span>
-          <span className="text-[#475569] text-[9px] font-mono tracking-wider">ROC COMPLIANCE PLATFORM</span>
+
+        <nav className="mt-7 flex-1 space-y-1" aria-label="Primary navigation">
+          <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-600">Workspace</p>
+          {links.map((link) => (
+            <NavLink key={link.to} to={link.to} className={linkClass}>
+              <link.icon className="h-4 w-4 shrink-0" strokeWidth={1.8} />
+              <span>{link.label}</span>
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="rounded-2xl border border-white/[0.07] bg-white/[0.04] p-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#263653] text-[10px] font-semibold text-blue-100">{initials}</div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-medium text-white">{user?.full_name || user?.email}</p>
+              <p className="mt-0.5 text-[9px] uppercase tracking-wider text-slate-500">{user?.role || 'member'}</p>
+            </div>
+            <button onClick={signOut} className="rounded-lg p-2 text-slate-500 transition hover:bg-white/[0.06] hover:text-white" aria-label="Sign out">
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
-      </div>
+      </aside>
 
-      {/* Nav section label */}
-      <div className="px-4 pt-4 pb-1">
-        <span className="text-[10px] font-bold text-[#475569] uppercase tracking-widest">Navigation</span>
-      </div>
-
-      {/* Nav Links */}
-      <div className="flex-1 py-1 px-2 space-y-0.5 overflow-y-auto">
-        {links.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            className={({ isActive }) =>
-              `flex items-center space-x-3 px-3 h-10 rounded-lg text-sm font-medium transition-all duration-150 relative group ${
-                isActive
-                  ? 'bg-[#2563EB] text-white shadow-sm shadow-[#2563EB]/30'
-                  : 'text-[#94A3B8] hover:text-white hover:bg-[#1E293B]'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <link.icon className="w-4 h-4 shrink-0" strokeWidth={isActive ? 2 : 1.5} />
-                <span className="text-[13px]">{link.label}</span>
-              </>
-            )}
+      <nav className="fixed inset-x-3 bottom-3 z-50 flex items-center justify-around rounded-2xl border border-white/10 bg-[#0B1220]/95 p-1.5 shadow-2xl backdrop-blur lg:hidden" aria-label="Mobile navigation">
+        {links.slice(0, 5).map((link) => (
+          <NavLink key={link.to} to={link.to} className={({ isActive }) => `flex min-w-[52px] flex-col items-center gap-1 rounded-xl px-2 py-2 text-[9px] ${isActive ? 'bg-white text-[#101828]' : 'text-slate-400'}`}>
+            <link.icon className="h-4 w-4" />
+            <span>{link.label}</span>
           </NavLink>
         ))}
-      </div>
-
-      {/* Separator */}
-      <div className="mx-4 border-t border-[#1E293B]" />
-
-      {/* Bottom Profile Info */}
-      <div className="p-3 flex flex-col space-y-2">
-        <div className="flex items-center space-x-2.5 px-2 py-2 rounded-lg min-w-0 bg-[#1E293B] border border-[#334155]">
-          {/* Avatar */}
-          <div className="w-8 h-8 rounded-full bg-[#2563EB]/20 border border-[#2563EB]/40 flex items-center justify-center text-[#60A5FA] text-xs font-bold uppercase shrink-0">
-            {getInitials()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-white truncate leading-tight">
-              {user?.full_name || 'CS Agent'}
-            </p>
-            <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] uppercase font-mono tracking-wider font-bold mt-0.5 ${roleMeta.badgeClass}`}>
-              {roleMeta.label}
-            </span>
-          </div>
-        </div>
-        
-        {/* Logout Button */}
-        <button
-          onClick={handleLogout}
-          className="w-full flex items-center justify-center space-x-2 px-3 h-8 border border-[#334155] hover:bg-[#EF4444]/10 hover:border-[#EF4444]/30 rounded-lg text-[#64748B] hover:text-[#EF4444] text-xs font-medium transition-all"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>Sign out</span>
-        </button>
-
-        {/* Version */}
-        <div className="text-center">
-          <span className="text-[9px] text-[#334155] font-mono">v1.0.0 · MVP Phase 1</span>
-        </div>
-      </div>
-    </div>
+      </nav>
+    </>
   );
 };
 

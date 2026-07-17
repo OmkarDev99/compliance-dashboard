@@ -1,191 +1,69 @@
 import React, { useState } from 'react';
-import { useLocation, Link } from 'react-router-dom';
-import { Bell, Search, X, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useLocation } from 'react-router-dom';
+import { Bell, AlertTriangle, CheckCircle2, Info, ShieldCheck } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../services/api';
 
-const Navbar = ({ pageTitle, onSearch }) => {
-  const { user } = useAuth();
+const pageNames = {
+  dashboard: 'Portfolio overview', clients: 'Companies', tasks: 'Obligations',
+  'regulatory-updates': 'Regulatory intelligence', reports: 'Reports',
+  admin: 'Administration', chat: 'Compliance assistant',
+};
+
+const Navbar = () => {
   const location = useLocation();
-  const [showSearch, setShowSearch] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showNotifications, setShowNotifications] = useState(false);
+  const [open, setOpen] = useState(false);
+  const section = location.pathname.split('/').filter(Boolean)[0] || 'dashboard';
+  const title = pageNames[section] || 'CS Command';
 
-  // Pull live audit logs as notification feed
-  const { data: auditLogs } = useQuery({
+  const { data: logs = [] } = useQuery({
     queryKey: ['navbar-notifications'],
-    queryFn: async () => {
-      const res = await api.get('/reports/audit-logs?limit=8');
-      return res.data;
-    },
+    queryFn: async () => (await api.get('/reports/audit-logs?limit=8')).data,
     staleTime: 60000,
-    refetchInterval: 120000, // Refresh every 2 min
   });
 
-  // Map audit logs to notification shape
-  const notifications = (auditLogs || []).map((log) => {
-    let type = 'info';
-    if (log.action.includes('overdue') || log.action.includes('delete')) type = 'overdue';
-    else if (log.action.includes('complete')) type = 'completed';
-
-    const label = (log.action || '').replace(/_/g, ' ');
-    const who = log.user?.full_name || 'System';
-    const co = log.action_metadata?.company_name ? ` · ${log.action_metadata.company_name}` : '';
-    return { type, message: `${who} ${label}${co}`, date: log.created_at };
-  });
-
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
-    if (onSearch) onSearch(e.target.value);
-  };
-
-  const getBreadcrumbs = () => {
-    const paths = location.pathname.split('/').filter((p) => p);
-    if (paths.length === 0) return <span className="text-[#0F172A] font-semibold text-sm">Dashboard</span>;
-
-    return (
-      <div className="flex items-center space-x-2 text-xs text-[#64748B]">
-        <Link to="/dashboard" className="hover:text-[#0F172A] transition-colors">Home</Link>
-        {paths.map((path, idx) => {
-          const isLast = idx === paths.length - 1;
-          const label = path.charAt(0).toUpperCase() + path.slice(1);
-          const to = `/${paths.slice(0, idx + 1).join('/')}`;
-
-          return (
-            <React.Fragment key={path}>
-              <span className="text-[#94A3B8] font-mono">/</span>
-              {isLast ? (
-                <span className="text-[#0F172A] font-semibold text-sm">{pageTitle || label}</span>
-              ) : (
-                <Link to={to} className="hover:text-[#0F172A] transition-colors capitalize">
-                  {label}
-                </Link>
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const getInitials = () => {
-    if (!user) return 'CS';
-    if (user.full_name) {
-      return user.full_name.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
-    }
-    return user.email.slice(0, 2).toUpperCase();
-  };
-
-  const unreadCount = notifications.filter((n) => n.type === 'overdue').length;
+  const notifications = logs.map((log) => ({
+    ...log,
+    type: log.action?.includes('overdue') ? 'overdue' : log.action?.includes('complete') ? 'completed' : 'info',
+    label: `${log.user?.full_name || 'System'} ${(log.action || 'updated').replace(/_/g, ' ')}`,
+  }));
+  const urgent = notifications.filter((item) => item.type === 'overdue').length;
 
   return (
-    <nav className="h-14 border-b border-[#E5E7EB] bg-white/95 backdrop-blur-sm flex items-center justify-between px-6 fixed top-0 right-0 left-[240px] z-30">
-      {/* Left: Breadcrumbs */}
-      <div className="flex items-center space-x-3">
-        {getBreadcrumbs()}
+    <header className="fixed left-0 right-0 top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/70 bg-[#F7F8FA]/90 px-5 backdrop-blur-xl lg:left-[236px] lg:px-8">
+      <div className="flex items-center gap-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#0B1220] lg:hidden"><ShieldCheck className="h-4 w-4 text-white" /></div>
+        <div>
+          <p className="text-sm font-semibold tracking-[-0.01em] text-[#101828]">{title}</p>
+          <p className="hidden text-[10px] text-slate-500 sm:block">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        </div>
       </div>
 
-      {/* Right: Search, Notifications, Avatar */}
-      <div className="flex items-center space-x-3 relative">
-        {showSearch ? (
-          <div className="flex items-center bg-[#F8FAFC] border border-[#2563EB]/40 rounded-lg px-2.5 py-1 text-sm w-64 page-transition">
-            <Search className="w-4 h-4 text-[#64748B] mr-2" />
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={handleSearchChange}
-              className="bg-transparent border-none text-[#0F172A] placeholder-[#94A3B8] outline-none w-full text-xs"
-              autoFocus
-            />
-            <button onClick={() => { setShowSearch(false); setSearchQuery(''); if (onSearch) onSearch(''); }}>
-              <X className="w-4 h-4 text-[#64748B] hover:text-[#0F172A]" />
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setShowSearch(true)}
-            className="p-1.5 hover:bg-[#F1F5F9] rounded-md text-[#64748B] hover:text-[#0F172A] transition-all"
-            title="Search"
-          >
-            <Search className="w-4 h-4" />
-          </button>
-        )}
-
-        {/* Notifications */}
-        <div className="relative">
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="p-1.5 hover:bg-[#F1F5F9] rounded-md text-[#64748B] hover:text-[#0F172A] transition-all relative"
-            title="Notifications"
-          >
-            <Bell className="w-4 h-4" />
-            {unreadCount > 0 && (
-              <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-[#EF4444] rounded-full border border-white animate-overdue" />
-            )}
-          </button>
-
-          {/* Notification Dropdown */}
-          {showNotifications && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
-              <div className="absolute right-0 mt-2 w-80 bg-white border border-[#E5E7EB] rounded-xl shadow-2xl shadow-[#0F172A]/10 z-50 overflow-hidden page-transition">
-                <div className="p-3 border-b border-[#E5E7EB] flex items-center justify-between bg-[#F8FAFC]">
-                  <h4 className="text-sm font-semibold text-[#0F172A] flex items-center gap-1.5">
-                    <Bell className="w-3.5 h-3.5 text-[#2563EB]" />
-                    Activity Feed
-                  </h4>
-                  {unreadCount > 0 && (
-                    <span className="text-[10px] bg-[#EF4444]/10 text-[#EF4444] px-1.5 py-0.5 rounded-full font-mono font-bold">
-                      {unreadCount} OVERDUE
-                    </span>
-                  )}
-                </div>
-
-                <div className="max-h-80 overflow-y-auto divide-y divide-[#F1F5F9]">
-                  {notifications.length === 0 ? (
-                    <div className="p-8 text-center text-[#64748B] text-xs">
-                      <Bell className="w-6 h-6 mx-auto mb-2 opacity-30" />
-                      No recent activity
-                    </div>
-                  ) : (
-                    notifications.map((n, idx) => {
-                      let Icon = Info;
-                      let iconColor = 'text-[#3B82F6]';
-                      if (n.type === 'overdue') { Icon = AlertTriangle; iconColor = 'text-[#EF4444]'; }
-                      else if (n.type === 'completed') { Icon = CheckCircle2; iconColor = 'text-[#22C55E]'; }
-
-                      return (
-                        <div key={idx} className="p-3 hover:bg-[#F8FAFC] transition-colors flex gap-2.5 items-start cursor-pointer">
-                          <Icon className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${iconColor}`} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-[#0F172A] leading-normal font-medium">{n.message}</p>
-                            <span className="text-[10px] text-[#94A3B8] block mt-0.5 font-mono">
-                              {new Date(n.date).toLocaleString('en-IN', {
-                                day: '2-digit', month: 'short',
-                                hour: '2-digit', minute: '2-digit'
-                              })}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+      <div className="relative">
+        <button onClick={() => setOpen(!open)} className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-slate-300 hover:text-slate-950" aria-label="Open activity feed">
+          <Bell className="h-4 w-4" />
+          {urgent > 0 && <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-rose-500 ring-2 ring-white" />}
+        </button>
+        {open && (
+          <>
+            <button className="fixed inset-0 z-40 cursor-default" onClick={() => setOpen(false)} aria-label="Close activity feed" />
+            <div className="absolute right-0 z-50 mt-2 w-[min(340px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(16,24,40,0.16)]">
+              <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3.5">
+                <div><p className="text-xs font-semibold text-slate-900">Recent activity</p><p className="text-[10px] text-slate-500">Latest portfolio actions</p></div>
+                {urgent > 0 && <span className="rounded-full bg-rose-50 px-2 py-1 text-[9px] font-semibold text-rose-600">{urgent} urgent</span>}
               </div>
-            </>
-          )}
-        </div>
-
-        {/* User avatar */}
-        <div className="w-8 h-8 rounded-full bg-[#EFF6FF] border border-[#2563EB]/30 text-[#2563EB] text-xs font-bold flex items-center justify-center uppercase select-none cursor-default"
-          title={user?.full_name || user?.email}
-        >
-          {getInitials()}
-        </div>
+              <div className="max-h-80 divide-y divide-slate-100 overflow-y-auto">
+                {notifications.length === 0 ? <p className="p-8 text-center text-xs text-slate-500">No recent activity</p> : notifications.map((item, index) => {
+                  const Icon = item.type === 'overdue' ? AlertTriangle : item.type === 'completed' ? CheckCircle2 : Info;
+                  const color = item.type === 'overdue' ? 'text-rose-500 bg-rose-50' : item.type === 'completed' ? 'text-emerald-600 bg-emerald-50' : 'text-blue-600 bg-blue-50';
+                  return <div key={item.id || index} className="flex gap-3 px-4 py-3.5"><div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${color}`}><Icon className="h-3.5 w-3.5" /></div><div><p className="text-[11px] font-medium leading-4 text-slate-800">{item.label}</p><p className="mt-1 text-[9px] text-slate-400">{new Date(item.created_at).toLocaleString('en-IN')}</p></div></div>;
+                })}
+              </div>
+            </div>
+          </>
+        )}
       </div>
-    </nav>
+    </header>
   );
 };
 

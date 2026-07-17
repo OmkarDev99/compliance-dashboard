@@ -1,8 +1,8 @@
-import ragApi from './ragApi';
+import api from './api';
 
 export const sendChatMessage = async (question) => {
   try {
-    const response = await ragApi.post('/chat', {
+    const response = await api.post('/assistant/chat', {
       question,
     });
     return response.data;
@@ -13,7 +13,7 @@ export const sendChatMessage = async (question) => {
 
 export const checkChatHealth = async () => {
   try {
-    const response = await ragApi.get('/health');
+    const response = await api.get('/assistant/health');
     return response.data;
   } catch (error) {
     throw new Error('Chat service is unavailable');

@@ -8,7 +8,7 @@ const ChatBox = () => {
   const [messages, setMessages] = useState([
     {
       id: 0,
-      text: 'Hello! I am your Compliance Assistant. Ask me any questions about ICSI and MCA compliance rules and regulations.',
+      text: 'Hello. Ask me to find regulatory publications, circulars, filing guidance, or compliance requirements. I will return source-backed matches with original links.',
       type: 'bot',
       sources: [],
     },
@@ -76,9 +76,9 @@ const ChatBox = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-lg shadow">
+    <div className="premium-card flex h-full flex-col overflow-hidden">
       {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50/40 p-4 sm:p-6">
         {messages.map((message) => (
           <div key={message.id}>
             <ChatMessage message={message.text} type={message.type} />
@@ -104,7 +104,7 @@ const ChatBox = () => {
         ))}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-gray-200 text-gray-900 px-4 py-3 rounded-lg rounded-bl-none">
+            <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-900 shadow-sm">
               <Loader />
             </div>
           </div>
@@ -113,21 +113,21 @@ const ChatBox = () => {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-gray-200 p-4">
-        <div className="flex gap-2">
+      <div className="border-t border-slate-100 bg-white p-4">
+        <div className="flex items-end gap-2">
           <textarea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="Ask a question about compliance rules..."
-            rows="3"
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            rows="2"
+            className="min-h-[48px] flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-50"
             disabled={isLoading}
           />
           <button
             onClick={handleSendMessage}
             disabled={isLoading || !inputValue.trim()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors h-fit"
+            className="premium-button-primary h-11 px-5 disabled:bg-slate-300"
           >
             Send
           </button>

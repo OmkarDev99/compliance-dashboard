@@ -6,19 +6,23 @@ An enterprise-grade SaaS platform for Company Secretaries (CS) to track and mana
 
 ## Services
 
-This project consists of three independently run services:
+The default application runs as two services plus MongoDB. The compliance assistant is integrated into the backend API.
 
 | Service | Stack | Port | Purpose |
 |---|---|---|---|
 | **Backend API** | FastAPI, Beanie ODM, Motor, APScheduler | `8000` | Core compliance tracking, client management, scheduling |
 | **Frontend** | React, Vite, Tailwind CSS, TanStack Query | `5173` | Dashboard UI |
-| **AI Chatbot API** | FastAPI, ChromaDB, Gemini API | `8001` | RAG-based Q&A over scraped ICSI/MCA compliance notices |
+| **Compliance Assistant** | Integrated FastAPI search | `8000` | Source-backed answers across the regulatory library |
 
-Database: **MongoDB** (shared by the backend; the AI module maintains its own vector index derived from the same scraped data).
+Database: **MongoDB**. The default assistant does not require a separate service, vector database, or external API key.
+
+The built-in Regulatory Intelligence library automatically discovers compatible `*_scraped_data.json` and `*_scrapped_data.json` files in `backend/`. It currently indexes 5,116 deduplicated records from 11 sources: IBBI, ICSI, IP India, India Registration Online, MCA, Ministry of Labour & Employment, NSE, RBI, SEBI, Udyam, and Vayana.
 
 ---
 
 ## Prerequisites
+
+> The Gemini key mentioned below is only for the optional legacy experiment in `ai_module/`; it is not required for the dashboard or its integrated Assistant.
 
 - Python 3.11+
 - Node.js 20+
@@ -28,6 +32,18 @@ Database: **MongoDB** (shared by the backend; the AI module maintains its own ve
 ---
 
 ## Setup
+
+### Recommended: Docker
+
+Start MongoDB, the backend, and the frontend together:
+
+```bash
+docker compose up --build -d
+```
+
+Open [localhost:5173](http://localhost:5173). To stop the project, run `docker compose down`.
+
+### Manual setup
 
 Each service is set up the same general way: create a virtual environment (Python services), install dependencies, and run. Details below.
 

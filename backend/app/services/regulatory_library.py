@@ -5,14 +5,15 @@ from functools import lru_cache
 from pathlib import Path
 
 
-DATA_FILES = (
-    "mca_scraped_data.json",
-    "icsi_scrapped_data.json",
-    "rbi_scraped_data.json",
-    "labour_scraped_data.json",
-    "atlas_vayana_scraped_data.json",
-    "udyam_scraped_data.json",
-)
+DATA_PATTERNS = ("*_scraped_data.json", "*_scrapped_data.json")
+
+
+def discover_data_files(backend_dir: Path) -> list[Path]:
+    """Discover compatible scraped datasets without hard-coded source names."""
+    files: set[Path] = set()
+    for pattern in DATA_PATTERNS:
+        files.update(backend_dir.glob(pattern))
+    return sorted(files, key=lambda path: path.name)
 
 
 def _clean_text(value: str) -> str:
@@ -33,10 +34,7 @@ def load_regulatory_updates() -> list[dict]:
     records: list[dict] = []
     seen_urls: set[str] = set()
 
-    for filename in DATA_FILES:
-        path = backend_dir / filename
-        if not path.exists():
-            continue
+    for path in discover_data_files(backend_dir):
         with path.open(encoding="utf-8") as source_file:
             rows = json.load(source_file)
         for row in rows if isinstance(rows, list) else []:

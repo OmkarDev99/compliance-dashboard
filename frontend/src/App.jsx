@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
@@ -6,16 +6,16 @@ import { AuthProvider } from './context/AuthContext';
 import useAuth from './hooks/useAuth';
 
 // Pages
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import ClientList from './pages/ClientList';
-import ClientDetail from './pages/ClientDetail';
-import TaskList from './pages/TaskList';
-import Chat from './pages/Chat';
-import AdminPanel from './pages/AdminPanel';
-import Reports from './pages/Reports';
-import RegulatoryUpdates from './pages/RegulatoryUpdates';
-import NotFound from './pages/NotFound';
+const Login = lazy(() => import('./pages/Login'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const ClientList = lazy(() => import('./pages/ClientList'));
+const ClientDetail = lazy(() => import('./pages/ClientDetail'));
+const TaskList = lazy(() => import('./pages/TaskList'));
+const Chat = lazy(() => import('./pages/Chat'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const Reports = lazy(() => import('./pages/Reports'));
+const RegulatoryUpdates = lazy(() => import('./pages/RegulatoryUpdates'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Layout Assets
 import Sidebar from './components/Sidebar';
@@ -43,12 +43,12 @@ const AdminRoute = () => {
 
 const Layout = () => {
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A]">
+    <div className="min-h-screen bg-[#F7F8FA] text-[#101828]">
       <Sidebar />
-      <div className="pl-[240px]">
+      <div className="lg:pl-[236px]">
         <Navbar />
-        <main className="pt-16 px-6 pb-6 md:px-8 md:pb-8 min-h-[calc(100vh-56px)]">
-          <div className="max-w-6xl mx-auto">
+        <main className="min-h-screen px-4 pb-28 pt-20 sm:px-6 lg:px-8 lg:pb-10">
+          <div className="mx-auto max-w-[1280px]">
             <Outlet />
           </div>
         </main>
@@ -95,7 +95,9 @@ const App = () => {
     <QueryClientProvider client={queryClient}>
       <Router>
         <AuthProvider>
-          <AppRoutes />
+          <Suspense fallback={<Loader fullScreen />}>
+            <AppRoutes />
+          </Suspense>
           <Toaster
             position="bottom-right"
             toastOptions={{
