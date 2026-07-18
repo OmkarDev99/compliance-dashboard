@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional, List, Literal
 from pydantic import BaseModel
 import uuid
 
@@ -46,7 +46,7 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     due_date: Optional[date] = None
-    status: Optional[str] = None
+    status: Optional[Literal["upcoming", "due_soon", "overdue", "completed"]] = None
     assigned_to: Optional[uuid.UUID] = None
     notes: Optional[str] = None
     reference_doc: Optional[str] = None

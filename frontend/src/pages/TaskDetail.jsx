@@ -14,6 +14,7 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
   const [notesText, setNotesText] = useState('');
   const [refDocUrl, setRefDocUrl] = useState('');
   const [selectedAssignee, setSelectedAssignee] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('upcoming');
 
   const { data: task, isLoading, isError } = useTaskDetails(taskId);
 
@@ -32,6 +33,7 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
       setNotesText(task.notes || '');
       setRefDocUrl(task.reference_doc || '');
       setSelectedAssignee(task.assigned_to || '');
+      setSelectedStatus(task.status || 'upcoming');
     }
   }, [task]);
 
@@ -53,6 +55,15 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
 
   const handleComplete = () => completeTaskMutation.mutate(taskId);
   const handleReopen = () => reopenTaskMutation.mutate(taskId);
+
+  const handleStatusChange = (e) => {
+    const status = e.target.value;
+    setSelectedStatus(status);
+    updateTaskMutation.mutate(
+      { id: taskId, data: { status } },
+      { onError: () => setSelectedStatus(task.status) }
+    );
+  };
 
   const deadlineColor = task ? getDeadlineColorClass(task.due_date, task.status === 'completed') : '';
   const deadlineLabel = task ? getDeadlineLabel(task.due_date) : '';
@@ -134,6 +145,27 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
                     {deadlineLabel}
                   </span>
                 )}
+              </div>
+
+              {/* Manual Status */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <label htmlFor="task-status" className="block text-xs font-bold text-[#64748B] uppercase tracking-wide">Task Status</label>
+                  <span className="text-[9px] text-[#94A3B8]">Manual CS override</span>
+                </div>
+                <select
+                  id="task-status"
+                  value={selectedStatus}
+                  onChange={handleStatusChange}
+                  disabled={updateTaskMutation.isPending}
+                  className={inputCls}
+                >
+                  <option value="upcoming">Upcoming</option>
+                  <option value="due_soon">Due Soon</option>
+                  <option value="overdue">Overdue</option>
+                  <option value="completed">Completed</option>
+                </select>
+                <p className="text-[10px] leading-4 text-[#64748B]">Changing this value updates portfolio totals and records the change in the audit trail.</p>
               </div>
 
               {/* Assignee */}

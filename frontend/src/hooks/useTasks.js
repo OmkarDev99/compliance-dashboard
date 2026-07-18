@@ -30,6 +30,7 @@ export const useUpdateTaskMutation = () => {
       if (data?.company_id) {
         queryClient.invalidateQueries({ queryKey: ['company', data.company_id] });
       }
+      queryClient.invalidateQueries({ queryKey: ['reports-summary'] });
       toast.success('Task updated successfully');
     },
     onError: (error) => {

@@ -29,6 +29,9 @@ async def run_daily_compliance_check():
     overdue_emails_sent = 0
     
     for task in tasks:
+        # Respect a status explicitly chosen by a CS user.
+        if getattr(task, "status_manually_set", False):
+            continue
         old_status = task.status
         new_status = old_status
         

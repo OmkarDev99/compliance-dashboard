@@ -11,6 +11,7 @@ class Task(Document):
     description: str | None = None
     due_date: date
     status: str = "upcoming"  # upcoming, due_soon, overdue, completed
+    status_manually_set: bool = False
     assigned_to: uuid.UUID | None = None
     completed_by: uuid.UUID | None = None
     completed_at: datetime | None = None

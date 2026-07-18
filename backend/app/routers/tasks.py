@@ -199,6 +199,15 @@ async def update_task(
     new_status = update_data.get("status", old_status)
     if "status" in update_data and old_status != new_status:
         status_changed = True
+
+        # Keep completion metadata consistent for direct status changes.
+        if new_status == "completed":
+            task.completed_by = current_user.id
+            task.completed_at = datetime.utcnow()
+        elif old_status == "completed":
+            task.completed_by = None
+            task.completed_at = None
+        task.status_manually_set = True
         
     for field, value in update_data.items():
         setattr(task, field, value)
@@ -311,6 +320,7 @@ async def complete_task(
         
     old_status = task.status
     task.status = "completed"
+    task.status_manually_set = True
     task.completed_by = current_user.id
     task.completed_at = datetime.utcnow()
     task.updated_at = datetime.utcnow()
@@ -392,6 +402,7 @@ async def reopen_task(
         )
         
     task.status = "upcoming"
+    task.status_manually_set = True
     task.completed_by = None
     task.completed_at = None
     task.updated_at = datetime.utcnow()
