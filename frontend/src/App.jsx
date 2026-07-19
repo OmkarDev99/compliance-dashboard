@@ -12,6 +12,8 @@ const ClientList = lazy(() => import('./pages/ClientList'));
 const ClientDetail = lazy(() => import('./pages/ClientDetail'));
 const TaskList = lazy(() => import('./pages/TaskList'));
 const Chat = lazy(() => import('./pages/Chat'));
+const Reconciliation = lazy(() => import('./pages/Reconciliation'));
+const FinancialStatements = lazy(() => import('./pages/FinancialStatements'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const Reports = lazy(() => import('./pages/Reports'));
 const RegulatoryUpdates = lazy(() => import('./pages/RegulatoryUpdates'));
@@ -75,6 +77,8 @@ const AppRoutes = () => {
           <Route path="/clients/:id" element={<ClientDetail />} />
           <Route path="/tasks" element={<TaskList />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/reconciliation" element={<Reconciliation />} />
+          <Route path="/financial-statements" element={<FinancialStatements />} />
           <Route path="/regulatory-updates" element={<RegulatoryUpdates />} />
           
           {/* Role Protected Panels */}
@@ -90,14 +94,18 @@ const AppRoutes = () => {
   );
 };
 
+import { WorkspaceProvider } from './context/WorkspaceContext';
+
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
       <Router>
         <AuthProvider>
-          <Suspense fallback={<Loader fullScreen />}>
-            <AppRoutes />
-          </Suspense>
+          <WorkspaceProvider>
+            <Suspense fallback={<Loader fullScreen />}>
+              <AppRoutes />
+            </Suspense>
+          </WorkspaceProvider>
           <Toaster
             position="bottom-right"
             toastOptions={{

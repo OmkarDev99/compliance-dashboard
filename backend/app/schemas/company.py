@@ -4,13 +4,16 @@ from pydantic import BaseModel, Field
 import uuid
 
 class CompanyBase(BaseModel):
-    cin: str = Field(..., min_length=21, max_length=21)  # Corporate Identity Number
+    cin: Optional[str] = Field(None, min_length=21, max_length=21)  # Corporate Identity Number
     name: str
-    company_type: str  # private_limited, public_limited, llp, opc
+    company_type: str  # private_limited, public_limited, llp, opc, partnership, proprietorship, individual
     reg_date: date
     financial_year_end: date
     address: Optional[str] = None
     assigned_to: Optional[uuid.UUID] = None
+    pan: Optional[str] = None
+    gstin: Optional[str] = None
+    client_type: str = "cs"  # cs, ca, both
 
 class CompanyCreate(CompanyBase):
     pass
@@ -23,17 +26,23 @@ class CompanyUpdate(BaseModel):
     financial_year_end: Optional[date] = None
     address: Optional[str] = None
     assigned_to: Optional[uuid.UUID] = None
+    pan: Optional[str] = None
+    gstin: Optional[str] = None
+    client_type: Optional[str] = None
     is_active: Optional[bool] = None
 
 class CompanyResponse(BaseModel):
     id: uuid.UUID
-    cin: str
+    cin: Optional[str] = None
     name: str
     company_type: str
     reg_date: date
     financial_year_end: date
     address: Optional[str] = None
     assigned_to: Optional[uuid.UUID] = None
+    pan: Optional[str] = None
+    gstin: Optional[str] = None
+    client_type: str
     is_active: bool
     created_at: datetime
 

@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { useWorkspace } from '../context/WorkspaceContext';
 import { Eye, EyeOff, Lock, Mail, AlertTriangle, ShieldCheck, UserRound, BriefcaseBusiness } from 'lucide-react';
 
 const demoAccounts = [
   { label: 'Administrator', email: 'admin@csdashboard.com', password: 'Admin@123', icon: ShieldCheck, tone: 'bg-blue-50 text-blue-700' },
   { label: 'Staff workspace', email: 'staff1@csdashboard.com', password: 'Staff@123', icon: UserRound, tone: 'bg-violet-50 text-violet-700' },
-  { label: 'Partner view', email: 'partner@csdashboard.com', password: 'Partner@123', icon: BriefcaseBusiness, tone: 'bg-emerald-50 text-emerald-700' },
+  { label: 'Partner view', email: 'partner@csdashboard.com', password: 'Partner@123', icon: BriefcaseBusiness, tone: 'bg-indigo-50 text-indigo-700' },
+  { label: 'CA (Taxation)', email: 'ca@csdashboard.com', password: 'CA@123', icon: ShieldCheck, tone: 'bg-emerald-50 text-emerald-700' },
 ];
 
 const Login = () => {
   const { login, isAuthenticated } = useAuth();
+  const { setWorkspaceMode } = useWorkspace();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -34,7 +37,12 @@ const Login = () => {
     
     setLoading(true);
     try {
-      await login(email, password);
+      const loggedUser = await login(email, password);
+      if (loggedUser?.role === 'ca') {
+        setWorkspaceMode('ca');
+      } else {
+        setWorkspaceMode('cs');
+      }
       navigate('/dashboard');
     } catch (err) {
       setError(err?.response?.data?.detail || 'Invalid email or password');
@@ -49,7 +57,12 @@ const Login = () => {
     setError('');
     setLoading(true);
     try {
-      await login(account.email, account.password);
+      const loggedUser = await login(account.email, account.password);
+      if (loggedUser?.role === 'ca') {
+        setWorkspaceMode('ca');
+      } else {
+        setWorkspaceMode('cs');
+      }
       navigate('/dashboard');
     } catch (err) {
       setError(err?.response?.data?.detail || 'Test account login failed');
@@ -78,25 +91,25 @@ const Login = () => {
                 <ShieldCheck className="w-5 h-5 text-white" />
               </div>
               <span className="text-[#2563EB] font-mono font-extrabold text-base tracking-widest">
-                CS DASHBOARD
+                COMPLIANCE HUB
               </span>
             </div>
             <h1 className="text-3xl font-extrabold text-[#0F172A] leading-tight">
-              ROC Compliance<br />
-              <span className="brand-gradient-text">Managed Intelligently.</span>
+              Regulatory Compliance<br />
+              <span className="brand-gradient-text">Unified Workspaces.</span>
             </h1>
             <p className="text-sm text-[#64748B] leading-relaxed max-w-sm">
-              Track, manage, and automate your company secretarial obligations across all client portfolios in one unified platform.
+              Integrated platforms for Company Secretaries (CS) and Chartered Accountants (CA) to manage corporate and tax portfolios.
             </p>
           </div>
 
           {/* Feature highlights */}
           <div className="space-y-2.5">
             {[
-              { label: 'Rule Engine auto-generates ROC tasks on client registration' },
-              { label: 'Real-time compliance scoring and overdue escalation' },
-              { label: 'Audit trail with timestamp for every user action' },
-              { label: 'Role-based access for Admin, Staff and Partner' },
+              { label: 'Dedicated workspaces for ROC (CS) and Tax (CA) compliances' },
+              { label: 'Advance Tax, GST Filing and TDS obligation calendars' },
+              { label: 'Unified Client Management supporting PAN, GSTIN and CIN' },
+              { label: 'Role-based access and automatic dashboard routing' },
             ].map((f, i) => (
               <div key={i} className="flex items-center gap-2.5 text-xs text-[#64748B]">
                 <div className="w-1.5 h-1.5 rounded-full bg-[#2563EB] shrink-0" />
@@ -108,18 +121,18 @@ const Login = () => {
         </div>
 
         {/* Right side — login card */}
-        <div className="w-full max-w-[420px] bg-white border border-[#E5E7EB] rounded-2xl p-8 shadow-xl shadow-[#0F172A]/8 page-transition">
+        <div className="w-full max-w-[440px] bg-white border border-[#E5E7EB] rounded-2xl p-8 shadow-xl shadow-[#0F172A]/8 page-transition">
           {/* Header */}
           <div className="text-center mb-8">
             <div className="lg:hidden flex items-center justify-center gap-2 mb-4">
               <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center">
                 <ShieldCheck className="w-4 h-4 text-white" />
               </div>
-              <span className="text-[#2563EB] font-mono font-extrabold text-sm tracking-widest">CS DASHBOARD</span>
+              <span className="text-[#2563EB] font-mono font-extrabold text-sm tracking-widest">COMPLIANCE HUB</span>
             </div>
             <h2 className="text-[#0F172A] text-xl font-bold">Sign in to your account</h2>
             <p className="text-[#64748B] text-xs mt-1.5 font-medium">
-              CS Compliance Platform — ROC Filing Hub
+              ROC Corporate & Tax Compliance Hub
             </p>
           </div>
 
@@ -206,19 +219,19 @@ const Login = () => {
             <div className="h-px flex-1 bg-slate-100" />
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
             {demoAccounts.map((account) => (
               <button
                 key={account.email}
                 type="button"
                 disabled={loading}
                 onClick={() => handleDemoLogin(account)}
-                className="group flex flex-col items-center rounded-xl border border-slate-200 bg-white px-2 py-3 text-center transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+                className="group flex flex-col items-center rounded-xl border border-slate-200 bg-white px-1 py-3 text-center transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${account.tone}`}>
                   <account.icon className="h-4 w-4" />
                 </span>
-                <span className="mt-2 text-[9px] font-semibold leading-3 text-slate-700">{account.label}</span>
+                <span className="mt-2 text-[8px] font-bold leading-3 text-slate-700 whitespace-nowrap">{account.label}</span>
               </button>
             ))}
           </div>
@@ -227,7 +240,7 @@ const Login = () => {
 
           {/* Footer info */}
           <div className="text-center text-[10px] text-[#94A3B8] mt-6">
-            Institute of Corporate Governance · MVP Phase 1 · June 2026
+            Compliance Command Hub · Phase 2 · July 2026
           </div>
         </div>
       </div>

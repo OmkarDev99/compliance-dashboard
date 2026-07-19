@@ -1,7 +1,7 @@
 import api from './api';
 
-export const getReportsSummary = async () => {
-  const response = await api.get('/reports/summary');
+export const getReportsSummary = async (params = {}) => {
+  const response = await api.get('/reports/summary', { params });
   return response.data;
 };
 

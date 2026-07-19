@@ -13,10 +13,12 @@ import TaskDetail from './TaskDetail';
 import { formatDate, getDeadlineColorClass } from '../utils/dateUtils';
 import api from '../services/api';
 import { toast } from 'react-hot-toast';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 const TaskList = () => {
   const location = useLocation();
   const queryClient = useQueryClient();
+  const { mode, isCS, isCA } = useWorkspace();
   const [searchQuery, setSearchQuery] = useState('');
   
   const [selectedStatuses, setSelectedStatuses] = useState([]);
@@ -37,14 +39,14 @@ const TaskList = () => {
   }, [location]);
 
   const { data: tasks, isLoading: isTasksLoading } = useQuery({
-    queryKey: ['tasks'],
-    queryFn: () => getTasks(),
+    queryKey: ['tasks', mode],
+    queryFn: () => getTasks({ category: mode }),
     staleTime: 30000,
   });
 
   const { data: companies } = useQuery({
-    queryKey: ['companies'],
-    queryFn: () => getCompanies(),
+    queryKey: ['companies', mode],
+    queryFn: () => getCompanies({ client_type: mode }),
   });
 
   const { data: users } = useQuery({

@@ -3,11 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   AlertTriangle, ArrowRight, BookOpen, Building2, CalendarClock,
-  CheckCircle2, CircleDot, Plus, Sparkles, UsersRound
+  CheckCircle2, CircleDot, Plus, Sparkles, UsersRound, FileSpreadsheet, RefreshCw
 } from 'lucide-react';
 import { getReportsSummary } from '../services/reports';
 import { getTasks } from '../services/tasks';
 import { useAuth } from '../context/AuthContext';
+import { useWorkspace } from '../context/WorkspaceContext';
 import api from '../services/api';
 import { DashboardSkeleton } from '../components/Loader';
 import StatusBadge from '../components/StatusBadge';
@@ -16,14 +17,24 @@ import TaskDetail from './TaskDetail';
 
 const Metric = ({ label, value, helper, icon: Icon, tone = 'blue' }) => {
   const tones = {
-    blue: 'bg-blue-50 text-blue-600', red: 'bg-rose-50 text-rose-600',
-    amber: 'bg-amber-50 text-amber-600', green: 'bg-emerald-50 text-emerald-600',
+    blue: 'bg-blue-50 text-blue-600',
+    red: 'bg-rose-50 text-rose-600',
+    amber: 'bg-amber-50 text-amber-600',
+    green: 'bg-emerald-50 text-emerald-600',
   };
   return (
     <div className="premium-card p-5">
       <div className="flex items-start justify-between">
-        <div><p className="eyebrow">{label}</p><p className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-slate-950">{Number(value || 0).toLocaleString()}</p><p className="mt-1 text-[10px] text-slate-500">{helper}</p></div>
-        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${tones[tone]}`}><Icon className="h-4 w-4" /></div>
+        <div>
+          <p className="eyebrow">{label}</p>
+          <p className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-slate-950">
+            {Number(value || 0).toLocaleString()}
+          </p>
+          <p className="mt-1 text-[10px] text-slate-500">{helper}</p>
+        </div>
+        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${tones[tone]}`}>
+          <Icon className="h-4 w-4" />
+        </div>
       </div>
     </div>
   );
@@ -32,10 +43,22 @@ const Metric = ({ label, value, helper, icon: Icon, tone = 'blue' }) => {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { mode, isCS, isCA } = useWorkspace();
   const [taskId, setTaskId] = useState(null);
-  const { data: summary, isLoading: summaryLoading } = useQuery({ queryKey: ['reports-summary'], queryFn: getReportsSummary });
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery({ queryKey: ['tasks'], queryFn: () => getTasks(), staleTime: 30000 });
-  const { data: logs = [], isLoading: logsLoading } = useQuery({ queryKey: ['system-audit-logs'], queryFn: async () => (await api.get('/reports/audit-logs?limit=6')).data });
+
+  const { data: summary, isLoading: summaryLoading } = useQuery({ 
+    queryKey: ['reports-summary', mode], 
+    queryFn: () => getReportsSummary({ category: mode }) 
+  });
+  const { data: tasks = [], isLoading: tasksLoading } = useQuery({ 
+    queryKey: ['tasks', mode], 
+    queryFn: () => getTasks({ category: mode }), 
+    staleTime: 30000 
+  });
+  const { data: logs = [], isLoading: logsLoading } = useQuery({ 
+    queryKey: ['system-audit-logs'], 
+    queryFn: async () => (await api.get('/reports/audit-logs?limit=6')).data 
+  });
 
   if (summaryLoading || tasksLoading || logsLoading) return <DashboardSkeleton />;
 
@@ -55,20 +78,47 @@ const Dashboard = () => {
       <section className="overflow-hidden rounded-[24px] bg-[#0B1220] px-6 py-7 text-white shadow-[0_20px_60px_rgba(11,18,32,0.18)] sm:px-8 sm:py-8">
         <div className="relative z-10 flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[10px] text-slate-300"><CircleDot className="h-3 w-3 text-emerald-400" /> Portfolio monitoring is active</div>
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[10px] text-slate-300">
+              <CircleDot className={`h-3 w-3 ${isCS ? 'text-blue-400' : 'text-emerald-400'}`} /> 
+              {isCS ? 'CS corporate law monitoring is active' : 'CA tax & ledger monitoring is active'}
+            </div>
             <h1 className="text-2xl font-semibold tracking-[-0.035em] sm:text-[32px]">Good day, {firstName}.</h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">Your compliance position is clear. Focus on the obligations needing attention, then move to the regulatory library for source-backed research.</p>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-400">
+              {isCS 
+                ? 'Your compliance position is clear. Focus on the obligations needing attention, then move to the regulatory library for source-backed research.'
+                : 'Your taxation and ledger accounts are up to date. Monitor GSTR/ITR returns, review invoice reconciliation mismatches, or generate audit statement drafts.'
+              }
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => navigate('/clients', { state: { openAddDrawer: true } })} className="premium-button-light"><Plus className="h-4 w-4" /> Add company</button>
-            <button onClick={() => navigate('/regulatory-updates')} className="premium-button-dark"><BookOpen className="h-4 w-4" /> Research updates</button>
+            <button 
+              onClick={() => navigate('/clients', { state: { openAddDrawer: true } })} 
+              className={`premium-button-light flex items-center gap-2 ${isCA ? 'hover:text-emerald-600 hover:border-emerald-600' : ''}`}
+            >
+              <Plus className="h-4 w-4" /> {isCS ? 'Add company' : 'Add client'}
+            </button>
+            {isCS ? (
+              <button onClick={() => navigate('/regulatory-updates')} className="premium-button-dark">
+                <BookOpen className="h-4 w-4" /> Research updates
+              </button>
+            ) : (
+              <button onClick={() => navigate('/reconciliation')} className="premium-button-dark flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-emerald-400" /> Run Reconciliation
+              </button>
+            )}
           </div>
         </div>
-        <div className="pointer-events-none absolute right-16 top-0 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl" />
+        <div className={`pointer-events-none absolute right-16 top-0 h-48 w-48 rounded-full ${isCS ? 'bg-blue-500/10' : 'bg-emerald-500/10'} blur-3xl`} />
       </section>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Active companies" value={summary?.total_companies} helper="Managed portfolio" icon={Building2} />
+        <Metric 
+          label={isCS ? 'Active companies' : 'Active clients'} 
+          value={summary?.total_companies} 
+          helper="Managed portfolio" 
+          icon={Building2} 
+          tone={isCS ? 'blue' : 'green'} 
+        />
         <Metric label="Needs attention" value={overdue} helper="Past statutory deadline" icon={AlertTriangle} tone="red" />
         <Metric label="Due in 7 days" value={summary?.due_soon_count} helper="Plan this week" icon={CalendarClock} tone="amber" />
         <Metric label="Completed" value={completed} helper={`${completion}% completion rate`} icon={CheckCircle2} tone="green" />
@@ -77,16 +127,31 @@ const Dashboard = () => {
       <section className="grid gap-5 xl:grid-cols-[1.65fr_0.85fr]">
         <div className="premium-card overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-            <div><p className="text-sm font-semibold text-slate-950">Priority obligations</p><p className="mt-0.5 text-[10px] text-slate-500">Ordered by nearest deadline</p></div>
-            <Link to="/tasks" className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700">View all <ArrowRight className="h-3.5 w-3.5" /></Link>
+            <div>
+              <p className="text-sm font-semibold text-slate-950">Priority obligations</p>
+              <p className="mt-0.5 text-[10px] text-slate-500">Ordered by nearest deadline</p>
+            </div>
+            <Link to="/tasks" className={`inline-flex items-center gap-1 text-[11px] font-semibold ${isCS ? 'text-blue-600 hover:text-blue-700' : 'text-emerald-600 hover:text-emerald-700'}`}>
+              View all <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
           <div className="divide-y divide-slate-100">
             {urgentTasks.length === 0 ? (
-              <div className="px-6 py-12 text-center"><CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" /><p className="mt-3 text-sm font-medium text-slate-900">All clear</p><p className="mt-1 text-xs text-slate-500">No open obligations require attention.</p></div>
+              <div className="px-6 py-12 text-center">
+                <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-500" />
+                <p className="mt-3 text-sm font-medium text-slate-900">All clear</p>
+                <p className="mt-1 text-xs text-slate-500">No open obligations require attention.</p>
+              </div>
             ) : urgentTasks.map((task) => (
               <button key={task.id} onClick={() => setTaskId(task.id)} className="grid w-full gap-3 px-5 py-4 text-left transition hover:bg-slate-50/80 sm:grid-cols-[1fr_150px_110px] sm:items-center sm:px-6">
-                <div className="min-w-0"><p className="truncate text-xs font-semibold text-slate-900">{task.title}</p><p className="mt-1 truncate text-[10px] text-slate-500">{task.company?.name || 'Client company'}</p></div>
-                <div><p className="text-[9px] uppercase tracking-wider text-slate-400">Due date</p><p className="mt-1 text-[11px] font-medium text-slate-700">{formatDate(task.due_date)}</p></div>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-semibold text-slate-900">{task.title}</p>
+                  <p className="mt-1 truncate text-[10px] text-slate-500">{task.company?.name || 'Client company'}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-wider text-slate-400">Due date</p>
+                  <p className="mt-1 text-[11px] font-medium text-slate-700">{formatDate(task.due_date)}</p>
+                </div>
                 <StatusBadge status={task.status} />
               </button>
             ))}
@@ -95,21 +160,66 @@ const Dashboard = () => {
 
         <div className="space-y-5">
           <div className="premium-card p-5 sm:p-6">
-            <div className="flex items-center justify-between"><div><p className="text-sm font-semibold text-slate-950">Portfolio health</p><p className="mt-0.5 text-[10px] text-slate-500">Deadline risk indicator</p></div><span className={`text-2xl font-semibold tracking-[-0.04em] ${health >= 80 ? 'text-emerald-600' : health >= 60 ? 'text-amber-600' : 'text-rose-600'}`}>{health}%</span></div>
-            <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${health >= 80 ? 'bg-emerald-500' : health >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${health}%` }} /></div>
-            <div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-xl bg-slate-50 p-3"><p className="text-[9px] uppercase tracking-wider text-slate-400">Open</p><p className="mt-1 text-lg font-semibold text-slate-900">{Math.max(0, total - completed)}</p></div><div className="rounded-xl bg-slate-50 p-3"><p className="text-[9px] uppercase tracking-wider text-slate-400">Completion</p><p className="mt-1 text-lg font-semibold text-slate-900">{completion}%</p></div></div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-950">Portfolio health</p>
+                <p className="mt-0.5 text-[10px] text-slate-500">Deadline risk indicator</p>
+              </div>
+              <span className={`text-2xl font-semibold tracking-[-0.04em] ${health >= 80 ? 'text-emerald-600' : health >= 60 ? 'text-amber-600' : 'text-rose-600'}`}>
+                {health}%
+              </span>
+            </div>
+            <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-full rounded-full ${health >= 80 ? 'bg-emerald-500' : health >= 60 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${health}%` }} />
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-[9px] uppercase tracking-wider text-slate-400">Open</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{Math.max(0, total - completed)}</p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <p className="text-[9px] uppercase tracking-wider text-slate-400">Completion</p>
+                <p className="mt-1 text-lg font-semibold text-slate-900">{completion}%</p>
+              </div>
+            </div>
           </div>
 
-          <Link to="/regulatory-updates" className="group block overflow-hidden rounded-2xl bg-gradient-to-br from-[#3157D5] to-[#2242A4] p-5 text-white shadow-lg shadow-blue-900/10 transition hover:-translate-y-0.5 hover:shadow-xl">
-            <Sparkles className="h-5 w-5 text-blue-200" /><p className="mt-5 text-sm font-semibold">Regulatory intelligence</p><p className="mt-1 text-[11px] leading-5 text-blue-100/75">Search every collected MCA, SEBI, NSE, IBBI, RBI and related source from one place.</p><span className="mt-4 inline-flex items-center gap-1 text-[10px] font-semibold">Explore library <ArrowRight className="h-3 w-3 transition group-hover:translate-x-1" /></span>
-          </Link>
+          {isCS ? (
+            <Link to="/regulatory-updates" className="group block overflow-hidden rounded-2xl bg-gradient-to-br from-[#3157D5] to-[#2242A4] p-5 text-white shadow-lg shadow-blue-900/10 transition hover:-translate-y-0.5 hover:shadow-xl">
+              <Sparkles className="h-5 w-5 text-blue-200" />
+              <p className="mt-5 text-sm font-semibold">Regulatory intelligence</p>
+              <p className="mt-1 text-[11px] leading-5 text-blue-100/75">Search every collected MCA, SEBI, NSE, IBBI, RBI and related source from one place.</p>
+              <span className="mt-4 inline-flex items-center gap-1 text-[10px] font-semibold">
+                Explore library <ArrowRight className="h-3 w-3 transition group-hover:translate-x-1" />
+              </span>
+            </Link>
+          ) : (
+            <Link to="/financial-statements" className="group block overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 to-emerald-800 p-5 text-white shadow-lg shadow-emerald-900/10 transition hover:-translate-y-0.5 hover:shadow-xl">
+              <FileSpreadsheet className="h-5 w-5 text-emerald-200" />
+              <p className="mt-5 text-sm font-semibold">Financial Statements</p>
+              <p className="mt-1 text-[11px] leading-5 text-emerald-100/75">View Balance Sheets, Profit & Loss summaries, Trial Balances, and Audit Reports instantly.</p>
+              <span className="mt-4 inline-flex items-center gap-1 text-[10px] font-semibold">
+                Check Statements <ArrowRight className="h-3 w-3 transition group-hover:translate-x-1" />
+              </span>
+            </Link>
+          )}
         </div>
       </section>
 
       <section className="premium-card p-5 sm:p-6">
-        <div className="mb-4 flex items-center gap-2"><UsersRound className="h-4 w-4 text-blue-600" /><p className="text-sm font-semibold text-slate-950">Recent team activity</p></div>
+        <div className="mb-4 flex items-center gap-2">
+          <UsersRound className={`h-4 w-4 ${isCS ? 'text-blue-600' : 'text-emerald-600'}`} />
+          <p className="text-sm font-semibold text-slate-950">Recent team activity</p>
+        </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {logs.map((log) => <div key={log.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5"><p className="text-[11px] font-medium text-slate-800">{log.user?.full_name || 'System'} {(log.action || 'updated').replace(/_/g, ' ')}</p><p className="mt-1.5 text-[9px] text-slate-400">{new Date(log.created_at).toLocaleString('en-IN')}</p></div>)}
+          {logs.map((log) => (
+            <div key={log.id} className="rounded-xl border border-slate-100 bg-slate-50/70 p-3.5">
+              <p className="text-[11px] font-medium text-slate-800">
+                {log.user?.full_name || 'System'} {(log.action || 'updated').replace(/_/g, ' ')}
+              </p>
+              <p className="mt-1.5 text-[9px] text-slate-400">{new Date(log.created_at).toLocaleString('en-IN')}</p>
+            </div>
+          ))}
         </div>
       </section>
 

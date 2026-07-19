@@ -1,8 +1,8 @@
 import api from './api';
 
-export const sendChatMessage = async (question) => {
+export const sendChatMessage = async (question, category) => {
   try {
-    const response = await api.post('/assistant/chat', {
+    const response = await api.post(`/assistant/chat${category ? `?category=${category}` : ''}`, {
       question,
     });
     return response.data;

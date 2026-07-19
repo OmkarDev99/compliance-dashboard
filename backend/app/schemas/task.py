@@ -6,7 +6,7 @@ import uuid
 class CompanyMinResponse(BaseModel):
     id: uuid.UUID
     name: str
-    cin: str
+    cin: Optional[str] = None
     company_type: str
 
     class Config:
@@ -37,6 +37,7 @@ class TaskBase(BaseModel):
     assigned_to: Optional[uuid.UUID] = None
     notes: Optional[str] = None
     reference_doc: Optional[str] = None
+    category: str = "cs"  # cs, ca
 
 class TaskCreate(TaskBase):
     company_id: uuid.UUID
@@ -50,6 +51,7 @@ class TaskUpdate(BaseModel):
     assigned_to: Optional[uuid.UUID] = None
     notes: Optional[str] = None
     reference_doc: Optional[str] = None
+    category: Optional[str] = None
 
 class TaskResponse(BaseModel):
     id: uuid.UUID
@@ -64,6 +66,7 @@ class TaskResponse(BaseModel):
     completed_at: Optional[datetime] = None
     reference_doc: Optional[str] = None
     notes: Optional[str] = None
+    category: str = "cs"
     created_at: datetime
     updated_at: datetime
     # Nested objects — populated when using selectinload in the router

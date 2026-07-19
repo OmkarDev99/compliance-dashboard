@@ -9,6 +9,7 @@ class ComplianceRule(Document):
     company_types: list[str]
     frequency: str
     due_days_from_trigger: int
+    category: str = "cs"  # cs, ca
     description: str | None = None
     is_active: bool = True
 

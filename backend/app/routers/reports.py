@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import uuid
-from typing import List
+from typing import List, Optional
 from app.core.dependencies import get_current_user
 from app.models.company import Company
 from app.models.task import Task
@@ -13,13 +13,24 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 @router.get("/summary", response_model=SummaryReportResponse)
 async def get_summary_report(
+    category: Optional[str] = None,  # cs, ca
     current_user: User = Depends(get_current_user)
 ):
-    # Total Active Companies
-    total_companies = await Company.find({"is_active": True}).count()
+    # Filter active companies by workspace category
+    query_comp = {"is_active": True}
+    if category == "cs":
+        query_comp["client_type"] = {"$in": ["cs", "both"]}
+    elif category == "ca":
+        query_comp["client_type"] = {"$in": ["ca", "both"]}
+        
+    total_companies = await Company.find(query_comp).count()
     
-    # Task Counts
-    tasks = await Task.find_all().to_list()
+    # Filter tasks by workspace category
+    query_task = {}
+    if category is not None:
+        query_task["category"] = category
+        
+    tasks = await Task.find(query_task).to_list()
     
     counts = {"overdue": 0, "due_soon": 0, "upcoming": 0, "completed": 0, "total": 0}
     for t in tasks:

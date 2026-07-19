@@ -19,16 +19,18 @@ async def get_companies(
     is_active: Optional[bool] = None,
     search: Optional[str] = None,
     company_type: Optional[str] = None,
+    client_type: Optional[str] = None,  # cs, ca, both
     limit: int = 100,
     offset: int = 0,
     current_user: User = Depends(get_current_user)
 ):
     """
     Retrieve companies with optional filters:
-    - **search**: Partial, case-insensitive match on company name or CIN.
-    - **company_type**: Filter by type (private_limited, public_limited, llp, opc).
+    - **search**: Partial, case-insensitive match on company name, CIN, PAN, or GSTIN.
+    - **company_type**: Filter by type.
     - **assigned_to**: Filter by assigned staff user ID.
     - **is_active**: Filter by active/inactive status.
+    - **client_type**: Filter by CS or CA workspace mode.
     """
     query = {}
     if assigned_to is not None:
@@ -37,12 +39,21 @@ async def get_companies(
         query["is_active"] = is_active
     if company_type is not None:
         query["company_type"] = company_type
+    if client_type is not None:
+        if client_type == "cs":
+            query["client_type"] = {"$in": ["cs", "both"]}
+        elif client_type == "ca":
+            query["client_type"] = {"$in": ["ca", "both"]}
+        else:
+            query["client_type"] = client_type
+
     if search is not None and search.strip():
-        # Case-insensitive search across both name and CIN fields
         escaped = re.escape(search.strip())
         query["$or"] = [
             {"name": {"$regex": escaped, "$options": "i"}},
-            {"cin": {"$regex": escaped, "$options": "i"}}
+            {"cin": {"$regex": escaped, "$options": "i"}},
+            {"pan": {"$regex": escaped, "$options": "i"}},
+            {"gstin": {"$regex": escaped, "$options": "i"}}
         ]
 
     companies = await Company.find(query).skip(offset).limit(limit).to_list()
@@ -53,11 +64,24 @@ async def create_company(
     company_in: CompanyCreate,
     current_user: User = Depends(get_current_user)
 ):
-    existing = await Company.find_one({"cin": company_in.cin})
-    if existing:
+    if company_in.cin:
+        existing = await Company.find_one({"cin": company_in.cin})
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Company with this CIN already exists."
+            )
+    elif company_in.pan:
+        existing = await Company.find_one({"pan": company_in.pan})
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Company with this PAN already exists."
+            )
+    else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Company with this CIN already exists."
+            detail="Either CIN or PAN must be provided."
         )
         
     company = Company(**company_in.model_dump())
@@ -69,7 +93,7 @@ async def create_company(
         action="company_created",
         entity_type="company",
         entity_id=company.id,
-        action_metadata={"cin": company.cin, "name": company.name, "company_type": company.company_type}
+        action_metadata={"cin": company.cin, "pan": company.pan, "name": company.name, "company_type": company.company_type}
     )
     await audit.insert()
 

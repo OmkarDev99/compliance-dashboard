@@ -2,6 +2,7 @@ import re
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+from typing import Optional
 
 from app.core.dependencies import get_current_user
 from app.models.user import User
@@ -65,17 +66,25 @@ async def assistant_health(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/chat", response_model=AssistantResponse)
-async def assistant_chat(request: AssistantRequest, current_user: User = Depends(get_current_user)):
+async def assistant_chat(
+    request: AssistantRequest,
+    category: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
     matches = find_relevant_records(request.question)
+    
+    is_ca_mode = category == "ca" or current_user.role == "ca"
+    assistant_role = "Tax & GST Assistant" if is_ca_mode else "Company Law Assistant"
+
     if not matches:
         return {
-            "answer": "I couldn't find relevant information for this question. Try including a form number, regulator, filing type, or obligation name.",
+            "answer": f"[{assistant_role}] I could not find a sufficiently relevant publication in the current library. Try including a form number, tax section, or obligation name.",
             "sources": [],
             "confidence": "not_found",
         }
 
     lead = matches[0]
-    answer = _answer_text(lead)
+    answer = f"[{assistant_role}] {_answer_text(lead)}"
 
     return {
         "answer": answer,

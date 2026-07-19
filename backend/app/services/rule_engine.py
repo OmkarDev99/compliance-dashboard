@@ -15,8 +15,20 @@ async def run_rule_engine_for_company(db, company: Company, user_id: Optional[uu
     bulk create tasks, and write an audit log.
     Returns the count of tasks generated.
     """
-    # Query active rules matching the company type
-    rules = await ComplianceRule.find({"is_active": True}).to_list()
+    # Query active rules matching the company client type and rule category
+    category_filter = []
+    client_type = getattr(company, "client_type", "cs") or "cs"
+    if client_type == "cs":
+        category_filter = ["cs"]
+    elif client_type == "ca":
+        category_filter = ["ca"]
+    else:
+        category_filter = ["cs", "ca"]
+
+    rules = await ComplianceRule.find({
+        "is_active": True,
+        "category": {"$in": category_filter}
+    }).to_list()
     
     tasks_to_create = []
     generated_count = 0
@@ -26,7 +38,7 @@ async def run_rule_engine_for_company(db, company: Company, user_id: Optional[uu
             due_date = company.financial_year_end + timedelta(days=rule.due_days_from_trigger)
             
             title = f"{rule.name} ({rule.form_number})" if rule.form_number else rule.name
-            description = rule.description or f"ROC compliance requirement: {title}"
+            description = rule.description or f"Compliance requirement: {title}"
             
             task = Task(
                 company_id=company.id,
@@ -35,7 +47,8 @@ async def run_rule_engine_for_company(db, company: Company, user_id: Optional[uu
                 description=description,
                 due_date=due_date,
                 status="upcoming",
-                assigned_to=company.assigned_to
+                assigned_to=company.assigned_to,
+                category=rule.category
             )
             tasks_to_create.append(task)
             generated_count += 1

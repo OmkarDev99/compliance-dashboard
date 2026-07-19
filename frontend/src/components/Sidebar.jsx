@@ -2,18 +2,29 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, ListChecks, BookOpen, Settings,
-  BarChart3, LogOut, ShieldCheck, MessageSquareText
+  BarChart3, LogOut, ShieldCheck, MessageSquareText,
+  FileSpreadsheet, RefreshCw
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { mode, isCS, isCA, title, subtitle } = useWorkspace();
 
-  const links = [
+  const links = isCS ? [
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
     { to: '/clients', label: 'Companies', icon: Building2 },
     { to: '/tasks', label: 'Obligations', icon: ListChecks },
+    { to: '/regulatory-updates', label: 'Intelligence', icon: BookOpen },
+    { to: '/chat', label: 'Assistant', icon: MessageSquareText },
+  ] : [
+    { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
+    { to: '/clients', label: 'Clients', icon: Building2 },
+    { to: '/tasks', label: 'Obligations', icon: ListChecks },
+    { to: '/reconciliation', label: 'Reconciliation', icon: RefreshCw },
+    { to: '/financial-statements', label: 'Statements', icon: FileSpreadsheet },
     { to: '/regulatory-updates', label: 'Intelligence', icon: BookOpen },
     { to: '/chat', label: 'Assistant', icon: MessageSquareText },
   ];
@@ -35,7 +46,9 @@ const Sidebar = () => {
 
   const linkClass = ({ isActive }) => `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all ${
     isActive
-      ? 'bg-white text-[#101828] shadow-[0_8px_24px_rgba(5,12,25,0.18)]'
+      ? isCS
+        ? 'bg-white text-[#101828] shadow-[0_8px_24px_rgba(5,12,25,0.18)]'
+        : 'bg-emerald-600 text-white shadow-[0_8px_24px_rgba(5,150,105,0.18)]'
       : 'text-slate-400 hover:bg-white/[0.06] hover:text-white'
   }`;
 
@@ -43,16 +56,18 @@ const Sidebar = () => {
     <>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[236px] flex-col bg-[#0B1220] px-3 py-4 lg:flex">
         <div className="flex h-12 items-center gap-3 px-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#6D8EFF] to-[#3157D5] shadow-lg shadow-blue-950/30">
+          <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${
+            isCS ? 'from-[#6D8EFF] to-[#3157D5]' : 'from-emerald-400 to-emerald-600'
+          } shadow-lg shadow-blue-950/30`}>
             <ShieldCheck className="h-[18px] w-[18px] text-white" />
           </div>
           <div>
-            <p className="text-[13px] font-semibold tracking-wide text-white">CS Command</p>
-            <p className="text-[10px] text-slate-500">Compliance workspace</p>
+            <p className="text-[13px] font-semibold tracking-wide text-white">{title}</p>
+            <p className="text-[10px] text-slate-500">{subtitle}</p>
           </div>
         </div>
 
-        <nav className="mt-7 flex-1 space-y-1" aria-label="Primary navigation">
+        <nav className="flex-grow space-y-1 mt-6" aria-label="Primary navigation">
           <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-600">Workspace</p>
           {links.map((link) => (
             <NavLink key={link.to} to={link.to} className={linkClass}>
@@ -78,7 +93,13 @@ const Sidebar = () => {
 
       <nav className="fixed inset-x-3 bottom-3 z-50 flex items-center justify-around rounded-2xl border border-white/10 bg-[#0B1220]/95 p-1.5 shadow-2xl backdrop-blur lg:hidden" aria-label="Mobile navigation">
         {links.slice(0, 5).map((link) => (
-          <NavLink key={link.to} to={link.to} className={({ isActive }) => `flex min-w-[52px] flex-col items-center gap-1 rounded-xl px-2 py-2 text-[9px] ${isActive ? 'bg-white text-[#101828]' : 'text-slate-400'}`}>
+          <NavLink key={link.to} to={link.to} className={({ isActive }) => `flex min-w-[52px] flex-col items-center gap-1 rounded-xl px-2 py-2 text-[9px] ${
+            isActive 
+              ? isCS 
+                ? 'bg-white text-[#101828]'
+                : 'bg-emerald-600 text-white'
+              : 'text-slate-400'
+          }`}>
             <link.icon className="h-4 w-4" />
             <span>{link.label}</span>
           </NavLink>

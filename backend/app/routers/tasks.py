@@ -19,6 +19,7 @@ async def get_tasks(
     assigned_to: Optional[uuid.UUID] = None,
     due_start: Optional[date] = None,
     due_end: Optional[date] = None,
+    category: Optional[str] = None,  # cs, ca
     limit: int = 100,
     offset: int = 0,
     current_user: User = Depends(get_current_user)
@@ -30,6 +31,8 @@ async def get_tasks(
         query["company_id"] = company_id
     if assigned_to is not None:
         query["assigned_to"] = assigned_to
+    if category is not None:
+        query["category"] = category
     if due_start is not None:
         query["due_date"] = query.get("due_date", {})
         query["due_date"]["$gte"] = due_start
@@ -84,6 +87,7 @@ async def get_tasks(
                 completed_at=t.completed_at,
                 reference_doc=t.reference_doc,
                 notes=t.notes,
+                category=t.category,
                 created_at=t.created_at,
                 updated_at=t.updated_at,
                 company=company_min,
