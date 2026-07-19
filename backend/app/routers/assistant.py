@@ -1,3 +1,5 @@
+import re
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
@@ -8,6 +10,35 @@ from app.services.assistant_search import find_relevant_records
 
 
 router = APIRouter(prefix="/assistant", tags=["compliance assistant"])
+
+MAX_SOURCE_TITLE_LENGTH = 160
+MAX_ANSWER_SENTENCES = 3
+
+
+def _clean_text(value: str) -> str:
+    text = " ".join(value.split())
+    return re.sub(r"(?<=[.!?])(?=[A-Z])", " ", text)
+
+
+def _short_text(value: str, max_length: int) -> str:
+    text = _clean_text(value)
+    if len(text) <= max_length:
+        return text
+    return f"{text[: max_length - 3].rsplit(' ', 1)[0]}..."
+
+
+def _answer_text(record: dict) -> str:
+    title = record["title"]
+    answer = re.split(r"\bans\.\s*", title, flags=re.IGNORECASE)[-1]
+    if answer == title:
+        answer = record["summary"] or title
+    sentences = re.split(r"(?<=[.!?])\s+", _clean_text(answer))
+    return " ".join(sentences[:MAX_ANSWER_SENTENCES])
+
+
+def _source_title(value: str) -> str:
+    title = re.split(r"\bans\.\s*", value, flags=re.IGNORECASE)[0]
+    return _short_text(title, MAX_SOURCE_TITLE_LENGTH)
 
 
 class AssistantRequest(BaseModel):
@@ -38,23 +69,18 @@ async def assistant_chat(request: AssistantRequest, current_user: User = Depends
     matches = find_relevant_records(request.question)
     if not matches:
         return {
-            "answer": "I could not find a sufficiently relevant publication in the current regulatory library. Try including a form number, regulator, filing type, or obligation name.",
+            "answer": "I couldn't find relevant information for this question. Try including a form number, regulator, filing type, or obligation name.",
             "sources": [],
             "confidence": "not_found",
         }
 
     lead = matches[0]
-    answer = (
-        f"The closest source-backed match is “{lead['title']}” from {lead['source']}. "
-        f"{lead['summary'] or 'Open the publication for the complete regulatory text.'}"
-    )
-    if len(matches) > 1:
-        answer += f" I also found {len(matches) - 1} related publication{'s' if len(matches) > 2 else ''} below."
+    answer = _answer_text(lead)
 
     return {
         "answer": answer,
         "sources": [
-            {"title": item["title"], "source": item["source"], "url": item["url"], "date": item["publication_date"]}
+            {"title": _source_title(item["title"]), "source": item["source"], "url": item["url"], "date": item["publication_date"]}
             for item in matches
         ],
         "confidence": "answered",
