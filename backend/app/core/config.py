@@ -5,6 +5,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-this-secret-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL_NAME: str = "gemini-flash-latest"
     
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
