@@ -2,14 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { Eye, EyeOff, Lock, Mail, AlertTriangle, ShieldCheck, UserRound, BriefcaseBusiness } from 'lucide-react';
-
-const demoAccounts = [
-  { label: 'Administrator', email: 'admin@csdashboard.com', password: 'Admin@123', icon: ShieldCheck, tone: 'bg-blue-50 text-blue-700' },
-  { label: 'Staff workspace', email: 'staff1@csdashboard.com', password: 'Staff@123', icon: UserRound, tone: 'bg-violet-50 text-violet-700' },
-  { label: 'Partner view', email: 'partner@csdashboard.com', password: 'Partner@123', icon: BriefcaseBusiness, tone: 'bg-indigo-50 text-indigo-700' },
-  { label: 'CA (Taxation)', email: 'ca@csdashboard.com', password: 'CA@123', icon: ShieldCheck, tone: 'bg-emerald-50 text-emerald-700' },
-];
+import { Eye, EyeOff, Lock, Mail, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 const Login = () => {
   const { login, isAuthenticated } = useAuth();
@@ -46,26 +39,6 @@ const Login = () => {
       navigate('/dashboard');
     } catch (err) {
       setError(err?.response?.data?.detail || 'Invalid email or password');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDemoLogin = async (account) => {
-    setEmail(account.email);
-    setPassword(account.password);
-    setError('');
-    setLoading(true);
-    try {
-      const loggedUser = await login(account.email, account.password);
-      if (loggedUser?.role === 'ca') {
-        setWorkspaceMode('ca');
-      } else {
-        setWorkspaceMode('cs');
-      }
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err?.response?.data?.detail || 'Test account login failed');
     } finally {
       setLoading(false);
     }
@@ -212,31 +185,6 @@ const Login = () => {
               ) : "Sign in →"}
             </button>
           </form>
-
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-slate-100" />
-            <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-400">Test access</span>
-            <div className="h-px flex-1 bg-slate-100" />
-          </div>
-
-          <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
-            {demoAccounts.map((account) => (
-              <button
-                key={account.email}
-                type="button"
-                disabled={loading}
-                onClick={() => handleDemoLogin(account)}
-                className="group flex flex-col items-center rounded-xl border border-slate-200 bg-white px-1 py-3 text-center transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${account.tone}`}>
-                  <account.icon className="h-4 w-4" />
-                </span>
-                <span className="mt-2 text-[8px] font-bold leading-3 text-slate-700 whitespace-nowrap">{account.label}</span>
-              </button>
-            ))}
-          </div>
-
-          <p className="mt-3 text-center text-[9px] leading-4 text-slate-400">Select a role to sign in instantly with its seeded test account.</p>
 
           {/* Footer info */}
           <div className="text-center text-[10px] text-[#94A3B8] mt-6">
