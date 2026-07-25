@@ -5,7 +5,7 @@ import logging
 
 from app.core.config import settings
 from app.core.db import init_db
-from app.routers import auth, clients, tasks, admin, reports, regulatory, assistant
+from app.routers import auth, clients, tasks, admin, reports, regulatory, assistant, organizations, calendar
 from app.services.scheduler import start_scheduler, shutdown_scheduler
 
 # Configure logging
@@ -54,11 +54,14 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router)
 app.include_router(clients.router)
+app.include_router(clients.clients_router)
 app.include_router(tasks.router)
 app.include_router(admin.router)
 app.include_router(reports.router)
 app.include_router(regulatory.router)
 app.include_router(assistant.router)
+app.include_router(organizations.router)
+app.include_router(calendar.router)
 
 @app.get("/")
 async def root():

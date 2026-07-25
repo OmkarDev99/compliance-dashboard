@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import uuid
 from typing import List, Optional
-from app.core.dependencies import RoleChecker
+from app.core.dependencies import RoleChecker, get_current_user, get_permissions, require_same_organization
 from app.core.security import get_password_hash
 from app.models.user import User
 from app.models.compliance_rule import ComplianceRule
@@ -19,13 +19,13 @@ router = APIRouter(
 
 # Users Management
 @router.get("/users", response_model=List[UserResponse])
-async def list_users():
-    users = await User.find().sort("-created_at").to_list()
+async def list_users(current_user: User = Depends(get_current_user)):
+    users = await User.find({"organization_id": current_user.organization_id}).sort("-created_at").to_list()
     return users
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def create_user(user_in: UserCreate):
-    existing = await User.find_one({"email": user_in.email})
+async def create_user(user_in: UserCreate, current_user: User = Depends(get_current_user)):
+    existing = await User.find_one({"email": user_in.email, "organization_id": current_user.organization_id})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
         
@@ -35,15 +35,17 @@ async def create_user(user_in: UserCreate):
         hashed_password=hashed_password,
         full_name=user_in.full_name,
         role=user_in.role,
-        is_active=user_in.is_active
+        is_active=user_in.is_active, organization_id=current_user.organization_id,
+        team_ids=user_in.team_ids, role_id=user_in.role_id, reports_to=user_in.reports_to,
+        designation=user_in.designation, permissions=user_in.permissions,
     )
     await user.insert()
     return user
 
 @router.put("/users/{user_id}", response_model=UserResponse)
-async def update_user(user_id: uuid.UUID, user_in: UserUpdate):
+async def update_user(user_id: uuid.UUID, user_in: UserUpdate, current_user: User = Depends(get_current_user)):
     user = await User.get(user_id)
-    if not user:
+    if not user or user.organization_id != current_user.organization_id:
         raise HTTPException(status_code=404, detail="User not found")
         
     update_data = user_in.model_dump(exclude_unset=True)
@@ -59,20 +61,20 @@ async def update_user(user_id: uuid.UUID, user_in: UserUpdate):
 
 # Compliance Rules Management
 @router.get("/rules", response_model=List[ComplianceRuleResponse])
-async def list_rules():
-    rules = await ComplianceRule.find().sort("name").to_list()
+async def list_rules(current_user: User = Depends(get_current_user)):
+    rules = await ComplianceRule.find({"$or": [{"organization_id": current_user.organization_id}, {"organization_id": None}]}).sort("name").to_list()
     return rules
 
 @router.post("/rules", response_model=ComplianceRuleResponse, status_code=status.HTTP_201_CREATED)
-async def create_rule(rule_in: ComplianceRuleCreate):
-    rule = ComplianceRule(**rule_in.model_dump())
+async def create_rule(rule_in: ComplianceRuleCreate, current_user: User = Depends(get_current_user)):
+    rule = ComplianceRule(**rule_in.model_dump(), organization_id=current_user.organization_id)
     await rule.insert()
     return rule
 
 @router.put("/rules/{rule_id}", response_model=ComplianceRuleResponse)
-async def update_rule(rule_id: uuid.UUID, rule_in: ComplianceRuleUpdate):
+async def update_rule(rule_id: uuid.UUID, rule_in: ComplianceRuleUpdate, current_user: User = Depends(get_current_user)):
     rule = await ComplianceRule.get(rule_id)
-    if not rule:
+    if not rule or (rule.organization_id and rule.organization_id != current_user.organization_id):
         raise HTTPException(status_code=404, detail="Rule not found")
         
     update_data = rule_in.model_dump(exclude_unset=True)
@@ -90,7 +92,8 @@ async def list_audit_logs(
     entity_type: Optional[str] = None,
     user_id: Optional[uuid.UUID] = None,
     limit: int = 50,
-    offset: int = 0
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
 ):
     """
     Retrieve system-wide audit logs with optional filters.
@@ -99,7 +102,7 @@ async def list_audit_logs(
     - **user_id**: Filter by the user who performed the action.
     - **limit** / **offset**: Pagination controls.
     """
-    query = {}
+    query = {"organization_id": current_user.organization_id}
     if action is not None:
         query["action"] = action
     if entity_type is not None:

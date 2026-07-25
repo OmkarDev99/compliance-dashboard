@@ -1,18 +1,146 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import uuid
 from typing import List, Optional
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, require_same_organization
 from app.models.company import Company
 from app.models.task import Task
 from app.models.audit_log import AuditLog
 from app.models.user import User
-from app.schemas.company import CompanyCreate, CompanyUpdate, CompanyResponse, CompanyDetailResponse, TasksSummary
+from app.models.compliance_rule import ComplianceRule
+from app.models.team import Team
+from app.models.compliance_calendar import ComplianceCalendar
+from app.schemas.company import CompanyCreate, CompanyUpdate, CompanyResponse, CompanyDetailResponse, TasksSummary, ClientAssignmentUpdate
 from app.schemas.task import TaskResponse, CompanyMinResponse, UserMinResponse, AuditLogMinResponse
+from app.schemas.company_360 import Company360ViewResponse, Company360Task, CompanyDocument, ClientAssignmentSummary
+from app.schemas.compliance_calendar import ComplianceCalendarResponse
 from app.services.rule_engine import run_rule_engine_for_company
 import re
 
 router = APIRouter(prefix="/companies", tags=["companies"])
+clients_router = APIRouter(prefix="/clients", tags=["clients"])
 
+async def _company_for_user(company_id: uuid.UUID, user: User) -> Company:
+    return await require_same_organization(await Company.get(company_id), user)
+
+async def _validate_assignment(data: ClientAssignmentUpdate, organization_id: uuid.UUID) -> None:
+    """Ensure all assignment records are tenant-local and the executive is in the selected team."""
+    ids = [data.relationship_partner_id, data.manager_id, data.primary_executive_id]
+    users = await User.find({"_id": {"$in": ids}, "organization_id": organization_id, "is_active": True}).to_list()
+    if len(users) != len(set(ids)):
+        raise HTTPException(status_code=400, detail="Assigned users must be active members of this organization")
+    team = await Team.get(data.assigned_team_id)
+    if not team or team.organization_id != organization_id:
+        raise HTTPException(status_code=400, detail="Assigned team must belong to this organization")
+    executive = next(user for user in users if user.id == data.primary_executive_id)
+    if executive.id not in team.member_ids and team.id not in executive.team_ids:
+        raise HTTPException(status_code=400, detail="Primary executive must belong to the selected team")
+
+def _apply_assignment(company: Company, data: ClientAssignmentUpdate) -> None:
+    company.relationship_partner_id = data.relationship_partner_id
+    company.manager_id = data.manager_id
+    company.assigned_team_id = data.assigned_team_id
+    company.primary_executive_id = data.primary_executive_id
+    # Preserve the existing assignment fields for older task/calendar screens.
+    company.assigned_to = data.primary_executive_id
+    company.assigned_team = data.assigned_team_id
+    company.relationship_manager = data.manager_id
+
+
+def _display_category(task: Task) -> str:
+    """Translate existing CS/CA task categories into the Client 360 filters."""
+    title = task.title.lower()
+    if "gst" in title or "gstr" in title:
+        return "GST"
+    if any(term in title for term in ("tax", "itr", "tds")):
+        return "Tax"
+    if task.category == "cs" and any(term in title for term in ("mgt", "dir", "ben", "pas", "board", "resolution")):
+        return "Secretarial"
+    return "ROC" if task.category == "cs" else "Tax"
+
+
+def _priority(task: Task) -> str:
+    if task.status == "overdue":
+        return "High"
+    if task.status == "due_soon":
+        return "Medium"
+    return "Low"
+
+
+@router.get("/{company_id}/360-view", response_model=Company360ViewResponse)
+async def get_company_360_view(
+    company_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+):
+    """Return all currently stored, company-scoped information in one request."""
+    company = await _company_for_user(company_id, current_user)
+
+    tasks = await Task.find({"company_id": company_id, "organization_id": current_user.organization_id}).sort("due_date").to_list()
+    task_ids = [task.id for task in tasks]
+    user_ids = {task.assigned_to for task in tasks if task.assigned_to}
+    user_ids.update(user_id for user_id in (company.relationship_partner_id, company.manager_id, company.primary_executive_id) if user_id)
+    users = [user for user in [await User.get(user_id) for user_id in user_ids] if user] if user_ids else []
+    users_by_id = {user.id: user for user in users}
+
+    def user_min(user_id: uuid.UUID | None):
+        user = users_by_id.get(user_id) if user_id else None
+        return UserMinResponse(id=user.id, email=user.email, full_name=user.full_name, role=user.role) if user else None
+
+    counts = {"overdue": 0, "due_soon": 0, "upcoming": 0, "completed": 0, "total": 0}
+    response_tasks = []
+    documents = []
+    for task in tasks:
+        if task.status in counts:
+            counts[task.status] += 1
+            counts["total"] += 1
+        response_tasks.append(Company360Task(
+            id=task.id, title=task.title, due_date=task.due_date, status=task.status,
+            category=task.category, display_category=_display_category(task), priority=_priority(task),
+            assigned_to=task.assigned_to, assigned_user=user_min(task.assigned_to),
+        ))
+        # reference_doc is the only existing, company-related file field.
+        if task.reference_doc:
+            documents.append(CompanyDocument(
+                id=task.id, title=f"{task.title} reference document", category=_display_category(task),
+                uploaded_at=task.updated_at, download_url=task.reference_doc,
+            ))
+
+    logs_query = {"organization_id": current_user.organization_id, "$or": [
+        {"entity_type": "company", "entity_id": company_id},
+        {"entity_type": "task", "entity_id": {"$in": task_ids}},
+    ]}
+    logs = await AuditLog.find(logs_query).sort("-created_at").limit(100).to_list()
+    log_user_ids = {log.user_id for log in logs if log.user_id} - set(users_by_id)
+    if log_user_ids:
+        log_users = [user for user in [await User.get(user_id) for user_id in log_user_ids] if user]
+        users_by_id.update({user.id: user for user in log_users})
+
+    response_logs = [AuditLogMinResponse(
+        id=log.id, user_id=log.user_id, action=log.action, entity_type=log.entity_type,
+        entity_id=log.entity_id, action_metadata=log.action_metadata, created_at=log.created_at,
+        user=user_min(log.user_id),
+    ) for log in logs]
+
+    calendar_items = await ComplianceCalendar.find({"organization_id": current_user.organization_id, "client_id": company.id}).sort("due_date").to_list()
+    calendar_response = []
+    for item in calendar_items:
+        rule = await ComplianceRule.get(item.compliance_rule_id)
+        calendar_response.append(ComplianceCalendarResponse(**item.model_dump(), rule_name=rule.name if rule else "Compliance rule"))
+
+    team = await Team.get(company.assigned_team_id) if company.assigned_team_id else None
+    return Company360ViewResponse(
+        company=company, industry=None, tasks_summary=TasksSummary(**counts), tasks=response_tasks,
+        documents=documents, contacts=[], audit_logs=response_logs,
+        assignment=ClientAssignmentSummary(
+            relationship_partner=user_min(company.relationship_partner_id),
+            manager=user_min(company.manager_id),
+            team_id=company.assigned_team_id,
+            team_name=team.name if team and team.organization_id == current_user.organization_id else None,
+            primary_executive=user_min(company.primary_executive_id),
+        ),
+        calendar=calendar_response,
+    )
+
+@clients_router.get("", response_model=List[CompanyResponse])
 @router.get("", response_model=List[CompanyResponse])
 async def get_companies(
     assigned_to: Optional[uuid.UUID] = None,
@@ -32,7 +160,7 @@ async def get_companies(
     - **is_active**: Filter by active/inactive status.
     - **client_type**: Filter by CS or CA workspace mode.
     """
-    query = {}
+    query = {"organization_id": current_user.organization_id}
     if assigned_to is not None:
         query["assigned_to"] = assigned_to
     if is_active is not None:
@@ -65,14 +193,14 @@ async def create_company(
     current_user: User = Depends(get_current_user)
 ):
     if company_in.cin:
-        existing = await Company.find_one({"cin": company_in.cin})
+        existing = await Company.find_one({"cin": company_in.cin, "organization_id": current_user.organization_id})
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Company with this CIN already exists."
             )
     elif company_in.pan:
-        existing = await Company.find_one({"pan": company_in.pan})
+        existing = await Company.find_one({"pan": company_in.pan, "organization_id": current_user.organization_id})
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -84,12 +212,15 @@ async def create_company(
             detail="Either CIN or PAN must be provided."
         )
         
-    company = Company(**company_in.model_dump())
+    assignment = ClientAssignmentUpdate(**company_in.model_dump())
+    await _validate_assignment(assignment, current_user.organization_id)
+    company = Company(**company_in.model_dump(), organization_id=current_user.organization_id)
+    _apply_assignment(company, assignment)
     await company.insert()
 
     # Log audit: company created
     audit = AuditLog(
-        user_id=current_user.id,
+        user_id=current_user.id, organization_id=current_user.organization_id,
         action="company_created",
         entity_type="company",
         entity_id=company.id,
@@ -102,17 +233,16 @@ async def create_company(
 
     return company
 
+@clients_router.get("/{company_id}", response_model=CompanyDetailResponse)
 @router.get("/{company_id}", response_model=CompanyDetailResponse)
 async def get_company_detail(
     company_id: uuid.UUID,
     current_user: User = Depends(get_current_user)
 ):
-    company = await Company.get(company_id)
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
+    company = await _company_for_user(company_id, current_user)
         
     # Count tasks grouped by status for this company
-    tasks = await Task.find({"company_id": company_id}).to_list()
+    tasks = await Task.find({"company_id": company_id, "organization_id": current_user.organization_id}).to_list()
     
     counts = {"overdue": 0, "due_soon": 0, "upcoming": 0, "completed": 0, "total": 0}
     for t in tasks:
@@ -132,11 +262,32 @@ async def get_company_detail(
         financial_year_end=company.financial_year_end,
         address=company.address,
         assigned_to=company.assigned_to,
+        relationship_partner_id=company.relationship_partner_id,
+        manager_id=company.manager_id,
+        assigned_team_id=company.assigned_team_id,
+        primary_executive_id=company.primary_executive_id,
         is_active=company.is_active,
         created_at=company.created_at,
         tasks_summary=summary
     )
     return response_data
+
+@clients_router.put("/{company_id}/assignment", response_model=CompanyResponse)
+@router.put("/{company_id}/assignment", response_model=CompanyResponse)
+async def update_client_assignment(
+    company_id: uuid.UUID,
+    assignment: ClientAssignmentUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    company = await _company_for_user(company_id, current_user)
+    await _validate_assignment(assignment, current_user.organization_id)
+    old_assignment = {key: str(getattr(company, key)) if getattr(company, key) else None for key in assignment.model_dump()}
+    _apply_assignment(company, assignment)
+    await company.save()
+    await AuditLog(user_id=current_user.id, organization_id=current_user.organization_id,
+                   action="client_assignment_updated", entity_type="company", entity_id=company.id,
+                   action_metadata={"old": old_assignment, "new": assignment.model_dump(mode="json")}).insert()
+    return company
 
 @router.put("/{company_id}", response_model=CompanyResponse)
 async def update_company(
@@ -144,9 +295,7 @@ async def update_company(
     company_in: CompanyUpdate,
     current_user: User = Depends(get_current_user)
 ):
-    company = await Company.get(company_id)
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
+    company = await _company_for_user(company_id, current_user)
         
     update_data = company_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -156,7 +305,7 @@ async def update_company(
 
     # Log audit: company updated
     audit = AuditLog(
-        user_id=current_user.id,
+        user_id=current_user.id, organization_id=current_user.organization_id,
         action="company_updated",
         entity_type="company",
         entity_id=company.id,
@@ -171,16 +320,14 @@ async def delete_company(
     company_id: uuid.UUID,
     current_user: User = Depends(get_current_user)
 ):
-    company = await Company.get(company_id)
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
+    company = await _company_for_user(company_id, current_user)
         
     company.is_active = False  # Soft delete
     await company.save()
 
     # Log audit: company soft-deleted
     audit = AuditLog(
-        user_id=current_user.id,
+        user_id=current_user.id, organization_id=current_user.organization_id,
         action="company_deleted",
         entity_type="company",
         entity_id=company.id,
@@ -195,11 +342,9 @@ async def get_company_tasks(
     company_id: uuid.UUID,
     current_user: User = Depends(get_current_user)
 ):
-    company = await Company.get(company_id)
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
+    company = await _company_for_user(company_id, current_user)
         
-    tasks = await Task.find({"company_id": company_id}).sort("due_date").to_list()
+    tasks = await Task.find({"company_id": company_id, "organization_id": current_user.organization_id}).sort("due_date").to_list()
     
     # Resolve related fields manually
     response_tasks = []
@@ -249,14 +394,12 @@ async def get_company_audit_logs(
     company_id: uuid.UUID,
     current_user: User = Depends(get_current_user)
 ):
-    company = await Company.get(company_id)
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not found")
+    company = await _company_for_user(company_id, current_user)
         
-    tasks = await Task.find({"company_id": company_id}).to_list()
+    tasks = await Task.find({"company_id": company_id, "organization_id": current_user.organization_id}).to_list()
     task_ids = [t.id for t in tasks]
     
-    logs = await AuditLog.find({
+    logs = await AuditLog.find({"organization_id": current_user.organization_id,
         "$or": [
             {"entity_type": "company", "entity_id": company_id},
             {"entity_type": "task", "entity_id": {"$in": task_ids}}

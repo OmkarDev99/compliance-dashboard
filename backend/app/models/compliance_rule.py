@@ -5,6 +5,7 @@ import uuid
 class ComplianceRule(Document):
     id: uuid.UUID = Field(default_factory=uuid.uuid4)
     name: str
+    organization_id: uuid.UUID | None = None  # None means platform/global rule
     form_number: str | None = None
     company_types: list[str]
     frequency: str

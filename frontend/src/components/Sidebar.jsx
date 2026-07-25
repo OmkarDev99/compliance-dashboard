@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, ListChecks, BookOpen, Settings,
   BarChart3, LogOut, ShieldCheck, MessageSquareText,
-  FileSpreadsheet, RefreshCw
+  FileSpreadsheet, RefreshCw, CalendarDays, UsersRound
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWorkspace } from '../context/WorkspaceContext';
@@ -17,12 +17,16 @@ const Sidebar = () => {
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
     { to: '/clients', label: 'Companies', icon: Building2 },
     { to: '/tasks', label: 'Obligations', icon: ListChecks },
+    { to: '/review-queue', label: 'Review Queue', icon: ShieldCheck },
+    { to: '/calendar', label: 'Calendar', icon: CalendarDays },
     { to: '/regulatory-updates', label: 'Intelligence', icon: BookOpen },
     { to: '/chat', label: 'Assistant', icon: MessageSquareText },
   ] : [
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
     { to: '/clients', label: 'Clients', icon: Building2 },
     { to: '/tasks', label: 'Obligations', icon: ListChecks },
+    { to: '/review-queue', label: 'Review Queue', icon: ShieldCheck },
+    { to: '/calendar', label: 'Calendar', icon: CalendarDays },
     { to: '/reconciliation', label: 'Reconciliation', icon: RefreshCw },
     { to: '/financial-statements', label: 'Statements', icon: FileSpreadsheet },
     { to: '/regulatory-updates', label: 'Intelligence', icon: BookOpen },
@@ -32,6 +36,7 @@ const Sidebar = () => {
   if (user?.role === 'admin') {
     links.push({ to: '/reports', label: 'Reports', icon: BarChart3 });
     links.push({ to: '/admin', label: 'Administration', icon: Settings });
+    links.push({ to: '/organization', label: 'Firm settings', icon: UsersRound });
   } else if (user?.role === 'partner') {
     links.push({ to: '/reports', label: 'Reports', icon: BarChart3 });
   }

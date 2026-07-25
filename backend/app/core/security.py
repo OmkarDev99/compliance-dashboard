@@ -12,7 +12,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
-def create_access_token(subject: Union[str, Any], role: str, expires_delta: Union[timedelta, None] = None) -> str:
+def create_access_token(subject: Union[str, Any], role: str, organization_id: Union[str, Any, None] = None, expires_delta: Union[timedelta, None] = None) -> str:
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
@@ -21,7 +21,8 @@ def create_access_token(subject: Union[str, Any], role: str, expires_delta: Unio
     to_encode = {
         "exp": expire,
         "sub": str(subject),
-        "role": role
+        "role": role,
+        "organization_id": str(organization_id) if organization_id else None,
     }
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt

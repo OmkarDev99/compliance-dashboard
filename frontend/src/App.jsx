@@ -17,6 +17,9 @@ const FinancialStatements = lazy(() => import('./pages/FinancialStatements'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 const Reports = lazy(() => import('./pages/Reports'));
 const RegulatoryUpdates = lazy(() => import('./pages/RegulatoryUpdates'));
+const OrganizationManagement = lazy(() => import('./pages/OrganizationManagement'));
+const ComplianceCalendar = lazy(() => import('./pages/ComplianceCalendar'));
+const ReviewQueue = lazy(() => import('./pages/ReviewQueue'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Layout Assets
@@ -76,6 +79,8 @@ const AppRoutes = () => {
           <Route path="/clients" element={<ClientList />} />
           <Route path="/clients/:id" element={<ClientDetail />} />
           <Route path="/tasks" element={<TaskList />} />
+          <Route path="/review-queue" element={<ReviewQueue />} />
+          <Route path="/calendar" element={<ComplianceCalendar />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/reconciliation" element={<Reconciliation />} />
           <Route path="/financial-statements" element={<FinancialStatements />} />
@@ -84,6 +89,7 @@ const AppRoutes = () => {
           {/* Role Protected Panels */}
           <Route element={<AdminRoute />}>
             <Route path="/admin" element={<AdminPanel />} />
+            <Route path="/organization" element={<OrganizationManagement />} />
             <Route path="/reports" element={<Reports />} />
           </Route>
           

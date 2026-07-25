@@ -17,7 +17,7 @@ async def get_summary_report(
     current_user: User = Depends(get_current_user)
 ):
     # Filter active companies by workspace category
-    query_comp = {"is_active": True}
+    query_comp = {"is_active": True, "organization_id": current_user.organization_id}
     if category == "cs":
         query_comp["client_type"] = {"$in": ["cs", "both"]}
     elif category == "ca":
@@ -26,7 +26,7 @@ async def get_summary_report(
     total_companies = await Company.find(query_comp).count()
     
     # Filter tasks by workspace category
-    query_task = {}
+    query_task = {"organization_id": current_user.organization_id}
     if category is not None:
         query_task["category"] = category
         
@@ -53,10 +53,10 @@ async def get_company_report(
     current_user: User = Depends(get_current_user)
 ):
     comp = await Company.get(company_id)
-    if not comp:
+    if not comp or comp.organization_id != current_user.organization_id:
         raise HTTPException(status_code=404, detail="Company not found")
         
-    tasks = await Task.find({"company_id": company_id}).to_list()
+    tasks = await Task.find({"company_id": company_id, "organization_id": current_user.organization_id}).to_list()
     
     counts = {"overdue": 0, "due_soon": 0, "upcoming": 0, "completed": 0, "total": 0}
     for t in tasks:
@@ -80,12 +80,12 @@ async def get_company_report(
 async def get_team_report(
     current_user: User = Depends(get_current_user)
 ):
-    users = await User.find({"is_active": True}).to_list()
+    users = await User.find({"is_active": True, "organization_id": current_user.organization_id}).to_list()
     
     reports = []
     for user in users:
-        tot_cnt = await Task.find({"assigned_to": user.id}).count()
-        comp_cnt = await Task.find({"assigned_to": user.id, "status": "completed"}).count()
+        tot_cnt = await Task.find({"assigned_to": user.id, "organization_id": current_user.organization_id}).count()
+        comp_cnt = await Task.find({"assigned_to": user.id, "status": "completed", "organization_id": current_user.organization_id}).count()
         
         rate = (comp_cnt / tot_cnt * 100) if tot_cnt > 0 else 100.0
         
@@ -104,7 +104,7 @@ async def get_audit_logs(
     limit: int = 5,
     current_user: User = Depends(get_current_user)
 ):
-    logs = await AuditLog.find().sort("-created_at").limit(limit).to_list()
+    logs = await AuditLog.find({"organization_id": current_user.organization_id}).sort("-created_at").limit(limit).to_list()
     
     response_logs = []
     user_cache = {}
@@ -140,11 +140,11 @@ async def get_audit_logs(
 async def get_companies_reports(
     current_user: User = Depends(get_current_user)
 ):
-    companies = await Company.find({"is_active": True}).to_list()
+    companies = await Company.find({"is_active": True, "organization_id": current_user.organization_id}).to_list()
     
     reports = []
     for comp in companies:
-        tasks = await Task.find({"company_id": comp.id}).to_list()
+        tasks = await Task.find({"company_id": comp.id, "organization_id": current_user.organization_id}).to_list()
         
         counts = {"overdue": 0, "due_soon": 0, "upcoming": 0, "completed": 0, "total": 0}
         for t in tasks:

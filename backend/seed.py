@@ -3,8 +3,10 @@ from datetime import date
 from app.core.db import init_db
 from app.core.security import get_password_hash
 from app.models.user import User
+from app.models.team import Team
 from app.models.compliance_rule import ComplianceRule
 from app.models.company import Company
+from app.models.organization import Organization
 from app.services.rule_engine import run_rule_engine_for_company
 
 async def seed():
@@ -30,6 +32,7 @@ async def seed():
         hashed_password=get_password_hash("Staff@123"),
         full_name="Rahul Sharma",
         role="staff",
+        designation="executive",
         is_active=True
     )
     staff2 = User(
@@ -37,6 +40,7 @@ async def seed():
         hashed_password=get_password_hash("Staff@123"),
         full_name="Priya Patel",
         role="staff",
+        designation="manager",
         is_active=True
     )
     partner = User(
@@ -54,6 +58,31 @@ async def seed():
         is_active=True
     )
     await User.insert_many([admin, staff1, staff2, partner, ca_user])
+    print("Seeding organization...")
+    default_org = Organization(
+        name="Default Firm",
+        slug="default-firm"
+    )
+    await default_org.insert()
+
+    # Assign users to the organization
+    for user in (admin, staff1, staff2, partner, ca_user):
+        user.organization_id = default_org.id
+        await user.save()
+
+    print("Seeding team...")
+    default_team = Team(
+        organization_id=default_org.id,
+        name="Core Compliance Team",
+        manager_id=staff2.id,
+        member_ids=[staff1.id, staff2.id]
+    )
+    await default_team.insert()
+
+    staff1.team_ids = [default_team.id]
+    staff2.team_ids = [default_team.id]
+    await staff1.save()
+    await staff2.save()
     
     print("Seeding compliance rules...")
     rules = [
@@ -242,7 +271,7 @@ async def seed():
         )
     ]
     await ComplianceRule.insert_many(rules)
-    
+
     print("Seeding companies...")
     companies = [
         # CS-Only client
@@ -254,7 +283,8 @@ async def seed():
             financial_year_end=date(2026, 3, 31),
             address="102, Connaught Place, New Delhi - 110001",
             assigned_to=staff1.id,
-            client_type="cs"
+            client_type="cs",
+            organization_id=default_org.id
         ),
         # CS-Only client
         Company(
@@ -265,7 +295,8 @@ async def seed():
             financial_year_end=date(2026, 3, 31),
             address="504, Nariman Point, Mumbai - 400021",
             assigned_to=staff2.id,
-            client_type="cs"
+            client_type="cs",
+            organization_id=default_org.id
         ),
         # BOTH client
         Company(
@@ -278,7 +309,8 @@ async def seed():
             assigned_to=partner.id,
             pan="AAHCA5678K",
             gstin="29AAHCA5678K1ZA",
-            client_type="both"
+            client_type="both",
+            organization_id=default_org.id
         ),
         # BOTH client
         Company(
@@ -291,7 +323,8 @@ async def seed():
             assigned_to=staff1.id,
             pan="AABCS1234M",
             gstin="29AABCS1234M2ZE",
-            client_type="both"
+            client_type="both",
+            organization_id=default_org.id
         ),
         # CS-Only client
         Company(
@@ -302,7 +335,8 @@ async def seed():
             financial_year_end=date(2026, 3, 31),
             address="MIDC Industrial Area, Pune - 411018",
             assigned_to=staff2.id,
-            client_type="cs"
+            client_type="cs",
+            organization_id=default_org.id
         ),
         # CA-Only client (Partnership)
         Company(
@@ -314,7 +348,8 @@ async def seed():
             assigned_to=ca_user.id,
             pan="AAAFM1111E",
             gstin="27AAAFM1111E1Z0",
-            client_type="ca"
+            client_type="ca",
+            organization_id=default_org.id
         ),
         # CA-Only client (Proprietorship)
         Company(
@@ -326,7 +361,8 @@ async def seed():
             assigned_to=ca_user.id,
             pan="ABVPS5555L",
             gstin="08ABVPS5555L3ZG",
-            client_type="ca"
+            client_type="ca",
+            organization_id=default_org.id
         )
     ]
     await Company.insert_many(companies)

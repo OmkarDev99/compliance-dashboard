@@ -11,6 +11,13 @@ class CompanyBase(BaseModel):
     financial_year_end: date
     address: Optional[str] = None
     assigned_to: Optional[uuid.UUID] = None
+    relationship_partner_id: uuid.UUID
+    manager_id: uuid.UUID
+    assigned_team_id: uuid.UUID
+    primary_executive_id: uuid.UUID
+    assigned_team: Optional[uuid.UUID] = None
+    relationship_manager: Optional[uuid.UUID] = None
+    industry: Optional[str] = None
     pan: Optional[str] = None
     gstin: Optional[str] = None
     client_type: str = "cs"  # cs, ca, both
@@ -26,6 +33,13 @@ class CompanyUpdate(BaseModel):
     financial_year_end: Optional[date] = None
     address: Optional[str] = None
     assigned_to: Optional[uuid.UUID] = None
+    relationship_partner_id: Optional[uuid.UUID] = None
+    manager_id: Optional[uuid.UUID] = None
+    assigned_team_id: Optional[uuid.UUID] = None
+    primary_executive_id: Optional[uuid.UUID] = None
+    assigned_team: Optional[uuid.UUID] = None
+    relationship_manager: Optional[uuid.UUID] = None
+    industry: Optional[str] = None
     pan: Optional[str] = None
     gstin: Optional[str] = None
     client_type: Optional[str] = None
@@ -40,11 +54,20 @@ class CompanyResponse(BaseModel):
     financial_year_end: date
     address: Optional[str] = None
     assigned_to: Optional[uuid.UUID] = None
+    relationship_partner_id: Optional[uuid.UUID] = None
+    manager_id: Optional[uuid.UUID] = None
+    assigned_team_id: Optional[uuid.UUID] = None
+    primary_executive_id: Optional[uuid.UUID] = None
     pan: Optional[str] = None
     gstin: Optional[str] = None
     client_type: str
     is_active: bool
     created_at: datetime
+    organization_id: Optional[uuid.UUID] = None
+    assigned_team: Optional[uuid.UUID] = None
+    relationship_manager: Optional[uuid.UUID] = None
+    industry: Optional[str] = None
+    status: str = "active"
 
     class Config:
         from_attributes = True
@@ -61,3 +84,9 @@ class CompanyDetailResponse(CompanyResponse):
 
     class Config:
         from_attributes = True
+
+class ClientAssignmentUpdate(BaseModel):
+    relationship_partner_id: uuid.UUID
+    manager_id: uuid.UUID
+    assigned_team_id: uuid.UUID
+    primary_executive_id: uuid.UUID

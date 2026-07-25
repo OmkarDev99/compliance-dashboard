@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.core.security import verify_password, create_access_token, get_password_hash
 from app.core.dependencies import get_current_user
 from app.models.user import User
+from app.models.organization import Organization
 from app.schemas.user import LoginRequest, TokenResponse, UserResponse, UserCreate
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -22,7 +23,7 @@ async def login(login_data: LoginRequest):
             detail="Inactive user account",
         )
         
-    access_token = create_access_token(subject=user.id, role=user.role)
+    access_token = create_access_token(subject=user.id, role=user.role, organization_id=user.organization_id)
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -44,16 +45,26 @@ async def register(user_in: UserCreate):
         raise HTTPException(status_code=400, detail="Email already registered")
         
     hashed_password = get_password_hash(user_in.password)
+    # Public registration provisions an isolated tenant for the first administrator.
+    slug_base = user_in.email.split("@")[0].lower().replace("_", "-")
+    slug = slug_base
+    counter = 2
+    while await Organization.find_one({"slug": slug}):
+        slug = f"{slug_base}-{counter}"
+        counter += 1
+    organization = Organization(name=(user_in.full_name or slug_base) + " Workspace", slug=slug)
+    await organization.insert()
     user = User(
         email=user_in.email,
         hashed_password=hashed_password,
         full_name=user_in.full_name,
-        role=user_in.role or "staff",
+        role="admin",
+        organization_id=organization.id,
         is_active=True
     )
     await user.insert()
     
-    access_token = create_access_token(subject=user.id, role=user.role)
+    access_token = create_access_token(subject=user.id, role=user.role, organization_id=user.organization_id)
     return {
         "access_token": access_token,
         "token_type": "bearer",

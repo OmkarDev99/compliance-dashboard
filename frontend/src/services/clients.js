@@ -20,6 +20,11 @@ export const updateCompany = async (id, companyData) => {
   return response.data;
 };
 
+export const updateClientAssignment = async (id, assignment) => {
+  const response = await api.put(`/clients/${id}/assignment`, assignment);
+  return response.data;
+};
+
 export const deleteCompany = async (id) => {
   const response = await api.delete(`/companies/${id}`);
   return response.data;
@@ -27,5 +32,10 @@ export const deleteCompany = async (id) => {
 
 export const getCompanyTasks = async (id) => {
   const response = await api.get(`/companies/${id}/tasks`);
+  return response.data;
+};
+
+export const getCompany360View = async (id) => {
+  const response = await api.get(`/companies/${id}/360-view`);
   return response.data;
 };

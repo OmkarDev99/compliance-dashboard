@@ -4,6 +4,7 @@ import uuid
 from app.core.config import settings
 from app.core.security import decode_access_token
 from app.models.user import User
+from app.models.role import Role, DEFAULT_PERMISSIONS
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
@@ -38,7 +39,41 @@ async def get_current_user(
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
         
+    token_org = payload.get("organization_id")
+    if user.organization_id and token_org != str(user.organization_id):
+        raise credentials_exception
     return user
+
+
+async def get_permissions(user: User) -> set[str]:
+    """Resolve permissions independently from a user's designation."""
+    if user.permissions:
+        return set(user.permissions)
+    if user.role_id:
+        role = await Role.get(user.role_id)
+        if role and role.organization_id == user.organization_id:
+            return set(role.permissions)
+    return set(DEFAULT_PERMISSIONS.get(user.role, []))
+
+
+class PermissionChecker:
+    def __init__(self, permission: str):
+        self.permission = permission
+
+    async def __call__(self, user: User = Depends(get_current_user)) -> User:
+        if self.permission not in await get_permissions(user):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Missing required permission")
+        return user
+
+
+def require_permission(permission: str):
+    return Depends(PermissionChecker(permission))
+
+
+async def require_same_organization(resource, user: User):
+    if not resource or resource.organization_id != user.organization_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Resource not found")
+    return resource
 
 class RoleChecker:
     def __init__(self, allowed_roles: list[str]):

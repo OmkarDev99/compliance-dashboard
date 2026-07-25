@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Search, Plus, X } from 'lucide-react';
 import { useClients, useCreateClientMutation } from '../hooks/useClients';
 import { getUsers } from '../services/auth';
+import api from '../services/api';
 import Loader, { TableRowSkeleton } from '../components/Loader';
 import EmptyState from '../components/EmptyState';
 import { useWorkspace } from '../context/WorkspaceContext';
@@ -23,6 +24,10 @@ const ClientList = () => {
     reg_date: '',
     financial_year_end: '2026-03-31',
     assigned_to: '',
+    relationship_partner_id: '',
+    manager_id: '',
+    assigned_team_id: '',
+    primary_executive_id: '',
     address: '',
     pan: '',
     gstin: '',
@@ -43,6 +48,10 @@ const ClientList = () => {
   const { data: users } = useQuery({
     queryKey: ['users'],
     queryFn: getUsers,
+  });
+  const { data: teams = [] } = useQuery({
+    queryKey: ['organization-teams'],
+    queryFn: async () => (await api.get('/organizations/teams')).data,
   });
 
   const createClientMutation = useCreateClientMutation();
@@ -70,7 +79,7 @@ const ClientList = () => {
       return;
     }
     createClientMutation.mutate(
-      { ...formData, assigned_to: formData.assigned_to ? formData.assigned_to : null },
+      { ...formData, assigned_to: formData.primary_executive_id || null },
       {
         onSuccess: () => {
           setIsAddDrawerOpen(false);
@@ -81,6 +90,10 @@ const ClientList = () => {
             reg_date: '', 
             financial_year_end: '2026-03-31', 
             assigned_to: '', 
+            relationship_partner_id: '',
+            manager_id: '',
+            assigned_team_id: '',
+            primary_executive_id: '',
             address: '',
             pan: '',
             gstin: '',
@@ -101,6 +114,48 @@ const ClientList = () => {
 
   const inputCls = "w-full h-9 bg-[#F8FAFC] border border-[#E5E7EB] rounded-md px-3 text-[#0F172A] placeholder-[#94A3B8] outline-none text-xs focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/10";
   const labelCls = "block text-xs font-bold text-[#64748B] uppercase tracking-wide";
+  const getTeamId = (team) => team.id || team._id;
+  const designated = (terms) => (users || []).filter((user) => terms.includes((user.designation || user.role || '').toLowerCase().replaceAll(' ', '_')));
+  const partners = designated(['partner']);
+  const managers = designated(['manager']);
+  
+  // Debug: Check team and executives data
+  const selectedTeam = teams.find((item) => getTeamId(item) === formData.assigned_team_id);
+  const executives = (users || []).filter((user) => {
+    const team = teams.find((item) => getTeamId(item) === formData.assigned_team_id);
+    if (!team) return false;
+    
+    // Method 1: Check if user is in team.member_ids
+    const memberIds = (team.member_ids || []).map((id) => String(id));
+    const inMemberIds = memberIds.some((id) => String(id) === String(user.id));
+    
+    if (inMemberIds) return true;
+    
+    // Method 2: Fallback - check if team is in user's team_ids (reverse lookup)
+    const userTeamIds = (user.team_ids || []).map((id) => String(id));
+    return userTeamIds.some((id) => String(id) === String(getTeamId(team)));
+  });
+  
+  // Debugging - log all relevant data
+  useEffect(() => {
+    console.log('=== CLIENTLIST FORM DEBUG ===');
+    console.log('Teams loaded:', teams?.length || 0, 'teams');
+    console.log('All teams:', teams?.map(t => ({ id: getTeamId(t), name: t.name, member_ids: t.member_ids })));
+    console.log('Users loaded:', users?.length || 0, 'users');
+    console.log('All users:', users?.map(u => ({ id: u.id, name: u.full_name, email: u.email, role: u.role, designation: u.designation })));
+  }, [teams, users]);
+  
+  useEffect(() => {
+    if (formData.assigned_team_id) {
+      console.log('--- TEAM SELECTED ---');
+      console.log('formData.assigned_team_id:', formData.assigned_team_id);
+      console.log('Teams array:', teams?.map(t => ({ id: getTeamId(t), name: t.name })));
+      console.log('Selected Team:', selectedTeam);
+      console.log('Team member_ids:', selectedTeam?.member_ids);
+      console.log('Filtered executives:', executives.map(e => ({ id: e.id, name: e.full_name, email: e.email })));
+      console.log('Executives count:', executives.length);
+    }
+  }, [formData.assigned_team_id, selectedTeam, executives]);
 
   return (
     <div className="space-y-6 page-transition">
@@ -322,14 +377,12 @@ const ClientList = () => {
                 <label className={labelCls}>Financial Year End</label>
                 <input type="date" name="financial_year_end" required value={formData.financial_year_end} onChange={handleInputChange} className={inputCls} />
               </div>
-              <div className="space-y-1.5">
-                <label className={labelCls}>{isCS ? 'Assign To CS' : 'Assign To CA'}</label>
-                <select name="assigned_to" value={formData.assigned_to} onChange={handleInputChange} className={inputCls}>
-                  <option value="">Unassigned</option>
-                  {users?.map((u) => (
-                    <option key={u.id} value={u.id}>{u.full_name || u.email} ({u.role})</option>
-                  ))}
-                </select>
+              <div className="rounded-lg border border-[#E5E7EB] bg-slate-50/60 p-3 space-y-3">
+                <p className="text-xs font-bold text-[#334155]">Client assignment</p>
+                <div className="space-y-1.5"><label className={labelCls}>Relationship Partner</label><select required name="relationship_partner_id" value={formData.relationship_partner_id} onChange={handleInputChange} className={inputCls}><option value="">Select partner</option>{partners.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}</select></div>
+                <div className="space-y-1.5"><label className={labelCls}>Primary Manager</label><select required name="manager_id" value={formData.manager_id} onChange={handleInputChange} className={inputCls}><option value="">Select manager</option>{managers.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}</select></div>
+                <div className="space-y-1.5"><label className={labelCls}>Assigned Team</label><select required name="assigned_team_id" value={formData.assigned_team_id} onChange={(event) => setFormData(prev => ({ ...prev, assigned_team_id: event.target.value, primary_executive_id: '' }))} className={inputCls}><option value="">Select team</option>{teams.map(team => <option key={getTeamId(team)} value={getTeamId(team)}>{team.name}</option>)}</select></div>
+                <div className="space-y-1.5"><label className={labelCls}>Primary Executive</label><select required disabled={!formData.assigned_team_id} name="primary_executive_id" value={formData.primary_executive_id} onChange={handleInputChange} className={inputCls}><option value="">Select executive</option>{executives.length > 0 ? executives.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>) : formData.assigned_team_id ? <option key="no-members" value="" disabled>No team members available</option> : null}</select></div>
               </div>
               <div className="space-y-1.5">
                 <label className={labelCls}>Address</label>

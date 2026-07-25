@@ -35,6 +35,10 @@ class TaskBase(BaseModel):
     due_date: date
     status: str = "upcoming"  # upcoming, due_soon, overdue, completed
     assigned_to: Optional[uuid.UUID] = None
+    assigned_team: Optional[uuid.UUID] = None
+    assigned_user: Optional[uuid.UUID] = None
+    reviewer: Optional[uuid.UUID] = None
+    approver: Optional[uuid.UUID] = None
     notes: Optional[str] = None
     reference_doc: Optional[str] = None
     category: str = "cs"  # cs, ca
@@ -47,11 +51,26 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     due_date: Optional[date] = None
-    status: Optional[Literal["upcoming", "due_soon", "overdue", "completed"]] = None
+    status: Optional[Literal["upcoming", "due_soon", "overdue", "completed", "pending", "assigned", "in_progress", "waiting_for_review", "changes_requested", "approved", "rejected"]] = None
+    current_stage: Optional[str] = None
     assigned_to: Optional[uuid.UUID] = None
     notes: Optional[str] = None
     reference_doc: Optional[str] = None
     category: Optional[str] = None
+    assigned_team: Optional[uuid.UUID] = None
+    assigned_user: Optional[uuid.UUID] = None
+    reviewer: Optional[uuid.UUID] = None
+    approver: Optional[uuid.UUID] = None
+    assigned_team_id: Optional[uuid.UUID] = None
+    assigned_user_id: Optional[uuid.UUID] = None
+    reviewer_id: Optional[uuid.UUID] = None
+    approver_id: Optional[uuid.UUID] = None
+
+class TaskAssignmentUpdate(BaseModel):
+    assigned_team_id: uuid.UUID
+    assigned_user_id: uuid.UUID
+    reviewer_id: uuid.UUID
+    approver_id: uuid.UUID
 
 class TaskResponse(BaseModel):
     id: uuid.UUID
@@ -61,6 +80,7 @@ class TaskResponse(BaseModel):
     description: Optional[str] = None
     due_date: date
     status: str
+    current_stage: Optional[str] = "executive"
     assigned_to: Optional[uuid.UUID] = None
     completed_by: Optional[uuid.UUID] = None
     completed_at: Optional[datetime] = None
@@ -69,6 +89,12 @@ class TaskResponse(BaseModel):
     category: str = "cs"
     created_at: datetime
     updated_at: datetime
+    organization_id: Optional[uuid.UUID] = None
+    created_by: Optional[uuid.UUID] = None
+    assigned_team_id: Optional[uuid.UUID] = None
+    assigned_user_id: Optional[uuid.UUID] = None
+    reviewer_id: Optional[uuid.UUID] = None
+    approver_id: Optional[uuid.UUID] = None
     # Nested objects — populated when using selectinload in the router
     company: Optional[CompanyMinResponse] = None
     assigned_user: Optional[UserMinResponse] = None
@@ -89,12 +115,27 @@ class AuditLogMinResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class TaskCommentCreate(BaseModel):
+    content: str
+
+class TaskCommentResponse(BaseModel):
+    id: uuid.UUID
+    task_id: uuid.UUID
+    user_id: uuid.UUID
+    user_name: str
+    content: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 class TaskDetailResponse(TaskResponse):
     company: CompanyMinResponse
     rule: Optional[RuleMinResponse] = None
     assigned_user: Optional[UserMinResponse] = None
     completed_user: Optional[UserMinResponse] = None
     audit_logs: List[AuditLogMinResponse] = []
+    comments: List[TaskCommentResponse] = []
 
     class Config:
         from_attributes = True

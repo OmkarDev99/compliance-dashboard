@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getTasks, getTask, updateTask, completeTask, reopenTask, deleteTask } from '../services/tasks';
+import { getTasks, getTask, updateTask, completeTask, reopenTask, deleteTask, transitionTask, addComment } from '../services/tasks';
 import { toast } from 'react-hot-toast';
 
 export const useTasks = (filters = {}) => {
@@ -144,6 +144,37 @@ export const useDeleteTaskMutation = () => {
     },
     onError: (error) => {
       toast.error(error?.response?.data?.detail || 'Failed to delete task');
+    },
+  });
+};
+
+export const useTransitionTaskMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, action, comment }) => transitionTask(id, action, comment),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      queryClient.invalidateQueries({ queryKey: ['task', variables.id] });
+      toast.success(`Workflow transition: ${variables.action}`);
+    },
+    onError: (error) => {
+      toast.error(error?.response?.data?.detail || 'Failed to transition task');
+    },
+  });
+};
+
+export const useAddCommentMutation = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, content }) => addComment(id, content),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['task', variables.id] });
+      toast.success('Comment added');
+    },
+    onError: (error) => {
+      toast.error(error?.response?.data?.detail || 'Failed to add comment');
     },
   });
 };
