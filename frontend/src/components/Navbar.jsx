@@ -8,6 +8,7 @@ const pageNames = {
   dashboard: 'Portfolio overview', clients: 'Companies', tasks: 'Obligations',
   'regulatory-updates': 'Regulatory intelligence', reports: 'Reports',
   admin: 'Administration', chat: 'Compliance assistant',
+  organization: 'Firm workspace', calendar: 'Compliance calendar',
 };
 
 const Navbar = () => {

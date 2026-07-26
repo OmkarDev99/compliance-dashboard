@@ -9,7 +9,8 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/login", response_model=TokenResponse)
 async def login(login_data: LoginRequest):
-    user = await User.find_one(User.email == login_data.email)
+    email = login_data.email.lower()
+    user = await User.find_one(User.email == email)
     
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
@@ -40,13 +41,14 @@ async def logout():
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_in: UserCreate):
-    existing = await User.find_one(User.email == user_in.email)
+    email = user_in.email.lower()
+    existing = await User.find_one(User.email == email)
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
         
     hashed_password = get_password_hash(user_in.password)
     # Public registration provisions an isolated tenant for the first administrator.
-    slug_base = user_in.email.split("@")[0].lower().replace("_", "-")
+    slug_base = email.split("@")[0].replace("_", "-")
     slug = slug_base
     counter = 2
     while await Organization.find_one({"slug": slug}):
@@ -55,7 +57,7 @@ async def register(user_in: UserCreate):
     organization = Organization(name=(user_in.full_name or slug_base) + " Workspace", slug=slug)
     await organization.insert()
     user = User(
-        email=user_in.email,
+        email=email,
         hashed_password=hashed_password,
         full_name=user_in.full_name,
         role="admin",

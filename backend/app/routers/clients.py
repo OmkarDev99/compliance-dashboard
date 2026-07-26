@@ -22,6 +22,12 @@ clients_router = APIRouter(prefix="/clients", tags=["clients"])
 async def _company_for_user(company_id: uuid.UUID, user: User) -> Company:
     return await require_same_organization(await Company.get(company_id), user)
 
+async def _tenant_user(user_id: uuid.UUID | None, organization_id: uuid.UUID) -> User | None:
+    if not user_id:
+        return None
+    user = await User.get(user_id)
+    return user if user and user.organization_id == organization_id else None
+
 async def _validate_assignment(data: ClientAssignmentUpdate, organization_id: uuid.UUID) -> None:
     """Ensure all assignment records are tenant-local and the executive is in the selected team."""
     ids = [data.relationship_partner_id, data.manager_id, data.primary_executive_id]
@@ -78,7 +84,7 @@ async def get_company_360_view(
     task_ids = [task.id for task in tasks]
     user_ids = {task.assigned_to for task in tasks if task.assigned_to}
     user_ids.update(user_id for user_id in (company.relationship_partner_id, company.manager_id, company.primary_executive_id) if user_id)
-    users = [user for user in [await User.get(user_id) for user_id in user_ids] if user] if user_ids else []
+    users = [user for user in [await _tenant_user(user_id, current_user.organization_id) for user_id in user_ids] if user] if user_ids else []
     users_by_id = {user.id: user for user in users}
 
     def user_min(user_id: uuid.UUID | None):
@@ -111,7 +117,7 @@ async def get_company_360_view(
     logs = await AuditLog.find(logs_query).sort("-created_at").limit(100).to_list()
     log_user_ids = {log.user_id for log in logs if log.user_id} - set(users_by_id)
     if log_user_ids:
-        log_users = [user for user in [await User.get(user_id) for user_id in log_user_ids] if user]
+        log_users = [user for user in [await _tenant_user(user_id, current_user.organization_id) for user_id in log_user_ids] if user]
         users_by_id.update({user.id: user for user in log_users})
 
     response_logs = [AuditLogMinResponse(
@@ -124,6 +130,8 @@ async def get_company_360_view(
     calendar_response = []
     for item in calendar_items:
         rule = await ComplianceRule.get(item.compliance_rule_id)
+        if rule and rule.organization_id not in {None, current_user.organization_id}:
+            rule = None
         calendar_response.append(ComplianceCalendarResponse(**item.model_dump(), rule_name=rule.name if rule else "Compliance rule"))
 
     team = await Team.get(company.assigned_team_id) if company.assigned_team_id else None
@@ -354,7 +362,7 @@ async def get_company_tasks(
         assigned_user = None
         if t.assigned_to:
             if t.assigned_to not in user_cache:
-                u = await User.get(t.assigned_to)
+                u = await _tenant_user(t.assigned_to, current_user.organization_id)
                 if u:
                     user_cache[t.assigned_to] = UserMinResponse(
                         id=u.id, email=u.email, full_name=u.full_name, role=u.role
@@ -413,7 +421,7 @@ async def get_company_audit_logs(
         log_user = None
         if log.user_id:
             if log.user_id not in user_cache:
-                u = await User.get(log.user_id)
+                u = await _tenant_user(log.user_id, current_user.organization_id)
                 if u:
                     user_cache[log.user_id] = UserMinResponse(
                         id=u.id, email=u.email, full_name=u.full_name, role=u.role

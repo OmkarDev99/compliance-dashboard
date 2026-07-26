@@ -46,8 +46,25 @@ async def init_db():
     if not legacy:
         legacy = Organization(name="Legacy Workspace", slug="legacy-workspace", subscription_plan="legacy")
         await legacy.insert()
-    for model in (User, Company, Task, AuditLog, ComplianceRule):
-        await model.get_pymongo_collection().update_many({"organization_id": {"$exists": False}}, {"$set": {"organization_id": legacy.id}})
+    for model in (User, Company, Task, AuditLog):
+        await model.get_pymongo_collection().update_many(
+            {"$or": [{"organization_id": {"$exists": False}}, {"organization_id": None}]},
+            {"$set": {"organization_id": legacy.id}},
+        )
+
+    # Backfill newer tenant projections from their tenant-owned parent record.
+    orphan_comments = await TaskComment.find({"$or": [{"organization_id": {"$exists": False}}, {"organization_id": None}]}).to_list()
+    for comment in orphan_comments:
+        parent_task = await Task.get(comment.task_id)
+        if parent_task and parent_task.organization_id:
+            comment.organization_id = parent_task.organization_id
+            await comment.save()
+
+    calendar_collection = ComplianceCalendar.get_pymongo_collection()
+    async for item in calendar_collection.find({"$or": [{"organization_id": {"$exists": False}}, {"organization_id": None}]}):
+        company = await Company.get(item.get("client_id")) if item.get("client_id") else None
+        if company and company.organization_id:
+            await calendar_collection.update_one({"_id": item["_id"]}, {"$set": {"organization_id": company.organization_id}})
     # Keep pre-existing task assignments readable through the new lifecycle fields.
     await Task.get_pymongo_collection().update_many(
         {"assigned_user_id": {"$exists": False}},

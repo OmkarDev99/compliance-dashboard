@@ -9,6 +9,8 @@ from app.models.audit_log import AuditLog
 from app.schemas.user import UserResponse, UserCreate, UserUpdate
 from app.schemas.compliance_rule import ComplianceRuleResponse, ComplianceRuleCreate, ComplianceRuleUpdate
 from app.schemas.task import AuditLogMinResponse, UserMinResponse
+from app.models.team import Team
+from app.models.role import Role
 
 # Use Depends(RoleChecker(...))
 router = APIRouter(
@@ -16,6 +18,31 @@ router = APIRouter(
     tags=["admin"],
     dependencies=[Depends(RoleChecker(["admin"]))]
 )
+
+TENANT_USER_ROLES = {"admin", "partner", "manager", "team_lead", "executive", "intern", "staff", "ca"}
+
+
+async def _validate_user_links(data: dict, organization_id: uuid.UUID, user_id: uuid.UUID | None = None) -> None:
+    """Reject team, role, and reporting relationships outside the current tenant."""
+    team_ids = data.get("team_ids")
+    if team_ids is not None:
+        teams = await Team.find({"_id": {"$in": team_ids}, "organization_id": organization_id}).to_list() if team_ids else []
+        if len(teams) != len(set(team_ids)):
+            raise HTTPException(status_code=400, detail="All teams must belong to this workspace")
+
+    role_id = data.get("role_id")
+    if role_id:
+        role = await Role.get(role_id)
+        if not role or role.organization_id != organization_id:
+            raise HTTPException(status_code=400, detail="Role must belong to this workspace")
+
+    reports_to = data.get("reports_to")
+    if reports_to:
+        if reports_to == user_id:
+            raise HTTPException(status_code=400, detail="A user cannot report to themselves")
+        manager = await User.get(reports_to)
+        if not manager or manager.organization_id != organization_id or not manager.is_active:
+            raise HTTPException(status_code=400, detail="Reporting manager must be an active workspace member")
 
 # Users Management
 @router.get("/users", response_model=List[UserResponse])
@@ -25,13 +52,18 @@ async def list_users(current_user: User = Depends(get_current_user)):
 
 @router.post("/users", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(user_in: UserCreate, current_user: User = Depends(get_current_user)):
-    existing = await User.find_one({"email": user_in.email, "organization_id": current_user.organization_id})
+    if user_in.role not in TENANT_USER_ROLES:
+        raise HTTPException(status_code=400, detail="Invalid workspace role")
+    email = user_in.email.lower()
+    existing = await User.find_one({"email": email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
-        
+
+    user_data = user_in.model_dump(exclude={"password", "organization_id"})
+    await _validate_user_links(user_data, current_user.organization_id)
     hashed_password = get_password_hash(user_in.password)
     user = User(
-        email=user_in.email,
+        email=email,
         hashed_password=hashed_password,
         full_name=user_in.full_name,
         role=user_in.role,
@@ -49,6 +81,14 @@ async def update_user(user_id: uuid.UUID, user_in: UserUpdate, current_user: Use
         raise HTTPException(status_code=404, detail="User not found")
         
     update_data = user_in.model_dump(exclude_unset=True)
+    if update_data.get("role") and update_data["role"] not in TENANT_USER_ROLES:
+        raise HTTPException(status_code=400, detail="Invalid workspace role")
+    if "email" in update_data:
+        update_data["email"] = update_data["email"].lower()
+        existing = await User.find_one({"email": update_data["email"], "_id": {"$ne": user_id}})
+        if existing:
+            raise HTTPException(status_code=400, detail="Email already registered")
+    await _validate_user_links(update_data, current_user.organization_id, user_id)
     if "password" in update_data and update_data["password"]:
         user.hashed_password = get_password_hash(update_data["password"])
         del update_data["password"]
@@ -74,7 +114,9 @@ async def create_rule(rule_in: ComplianceRuleCreate, current_user: User = Depend
 @router.put("/rules/{rule_id}", response_model=ComplianceRuleResponse)
 async def update_rule(rule_id: uuid.UUID, rule_in: ComplianceRuleUpdate, current_user: User = Depends(get_current_user)):
     rule = await ComplianceRule.get(rule_id)
-    if not rule or (rule.organization_id and rule.organization_id != current_user.organization_id):
+    # Platform rules (organization_id=None) are visible to every tenant but are
+    # intentionally read-only. Tenant admins may edit only their own rules.
+    if not rule or rule.organization_id != current_user.organization_id:
         raise HTTPException(status_code=404, detail="Rule not found")
         
     update_data = rule_in.model_dump(exclude_unset=True)
@@ -120,7 +162,7 @@ async def list_audit_logs(
         if log.user_id:
             if log.user_id not in user_cache:
                 u = await User.get(log.user_id)
-                if u:
+                if u and u.organization_id == current_user.organization_id:
                     user_cache[log.user_id] = UserMinResponse(
                         id=u.id, email=u.email, full_name=u.full_name, role=u.role
                     )

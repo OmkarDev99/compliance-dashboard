@@ -18,6 +18,16 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 async def _task_for_user(task_id: uuid.UUID, user: User) -> Task:
     return await require_same_organization(await Task.get(task_id), user)
 
+async def _tenant_user(user_id: uuid.UUID | None, organization_id: uuid.UUID) -> User | None:
+    if not user_id:
+        return None
+    user = await User.get(user_id)
+    return user if user and user.organization_id == organization_id else None
+
+async def _tenant_company(company_id: uuid.UUID, organization_id: uuid.UUID) -> Company | None:
+    company = await Company.get(company_id)
+    return company if company and company.organization_id == organization_id else None
+
 def _work_role(user: User) -> str:
     return (user.designation or user.role or "").lower().replace(" ", "_")
 
@@ -144,7 +154,7 @@ async def get_tasks(
     for t in tasks:
         company_min = None
         if t.company_id not in company_cache:
-            c = await Company.get(t.company_id)
+            c = await _tenant_company(t.company_id, current_user.organization_id)
             if c:
                 company_cache[t.company_id] = CompanyMinResponse(
                     id=c.id, name=c.name, cin=c.cin, company_type=c.company_type
@@ -156,7 +166,7 @@ async def get_tasks(
         assigned_user = None
         if t.assigned_to:
             if t.assigned_to not in user_cache:
-                u = await User.get(t.assigned_to)
+                u = await _tenant_user(t.assigned_to, current_user.organization_id)
                 if u:
                     user_cache[t.assigned_to] = UserMinResponse(
                         id=u.id, email=u.email, full_name=u.full_name, role=u.role
@@ -196,22 +206,24 @@ async def get_task_detail(
 ):
     task = await _task_for_user(task_id, current_user)
         
-    company_doc = await Company.get(task.company_id)
+    company_doc = await _tenant_company(task.company_id, current_user.organization_id)
     company_min = CompanyMinResponse(
         id=company_doc.id, name=company_doc.name, cin=company_doc.cin, company_type=company_doc.company_type
     ) if company_doc else None
     
     rule_doc = await ComplianceRule.get(task.rule_id) if task.rule_id else None
+    if rule_doc and rule_doc.organization_id not in {None, current_user.organization_id}:
+        rule_doc = None
     rule_min = RuleMinResponse(
         id=rule_doc.id, name=rule_doc.name, form_number=rule_doc.form_number
     ) if rule_doc else None
     
-    assignee_doc = await User.get(task.assigned_to) if task.assigned_to else None
+    assignee_doc = await _tenant_user(task.assigned_to, current_user.organization_id)
     assignee_min = UserMinResponse(
         id=assignee_doc.id, email=assignee_doc.email, full_name=assignee_doc.full_name, role=assignee_doc.role
     ) if assignee_doc else None
     
-    completed_doc = await User.get(task.completed_by) if task.completed_by else None
+    completed_doc = await _tenant_user(task.completed_by, current_user.organization_id)
     completed_min = UserMinResponse(
         id=completed_doc.id, email=completed_doc.email, full_name=completed_doc.full_name, role=completed_doc.role
     ) if completed_doc else None
@@ -226,7 +238,7 @@ async def get_task_detail(
         log_user = None
         if log.user_id:
             if log.user_id not in user_cache:
-                u = await User.get(log.user_id)
+                u = await _tenant_user(log.user_id, current_user.organization_id)
                 if u:
                     user_cache[log.user_id] = UserMinResponse(
                         id=u.id, email=u.email, full_name=u.full_name, role=u.role
@@ -335,10 +347,10 @@ async def update_task(
         old_name = "Unassigned"
         new_name = "Unassigned"
         if old_assignee_id:
-            old_usr = await User.get(old_assignee_id)
+            old_usr = await _tenant_user(old_assignee_id, current_user.organization_id)
             if old_usr: old_name = old_usr.full_name or old_usr.email
         if new_assignee_id:
-            new_usr = await User.get(new_assignee_id)
+            new_usr = await _tenant_user(new_assignee_id, current_user.organization_id)
             if new_usr: new_name = new_usr.full_name or new_usr.email
             
         audit = AuditLog(
@@ -368,12 +380,12 @@ async def update_task(
         )
         await audit.insert()
         
-    company_doc = await Company.get(task.company_id)
+    company_doc = await _tenant_company(task.company_id, current_user.organization_id)
     company_min = CompanyMinResponse(
         id=company_doc.id, name=company_doc.name, cin=company_doc.cin, company_type=company_doc.company_type
     ) if company_doc else None
     
-    assignee_doc = await User.get(task.assigned_to) if task.assigned_to else None
+    assignee_doc = await _tenant_user(task.assigned_to, current_user.organization_id)
     assignee_min = UserMinResponse(
         id=assignee_doc.id, email=assignee_doc.email, full_name=assignee_doc.full_name, role=assignee_doc.role
     ) if assignee_doc else None
@@ -406,11 +418,11 @@ async def complete_task(
     task = await _task_for_user(task_id, current_user)
         
     if task.status == "completed":
-        company_doc = await Company.get(task.company_id)
+        company_doc = await _tenant_company(task.company_id, current_user.organization_id)
         company_min = CompanyMinResponse(
             id=company_doc.id, name=company_doc.name, cin=company_doc.cin, company_type=company_doc.company_type
         ) if company_doc else None
-        assignee_doc = await User.get(task.assigned_to) if task.assigned_to else None
+        assignee_doc = await _tenant_user(task.assigned_to, current_user.organization_id)
         assignee_min = UserMinResponse(
             id=assignee_doc.id, email=assignee_doc.email, full_name=assignee_doc.full_name, role=assignee_doc.role
         ) if assignee_doc else None
@@ -451,12 +463,12 @@ async def complete_task(
     )
     await audit.insert()
     
-    company_doc = await Company.get(task.company_id)
+    company_doc = await _tenant_company(task.company_id, current_user.organization_id)
     company_min = CompanyMinResponse(
         id=company_doc.id, name=company_doc.name, cin=company_doc.cin, company_type=company_doc.company_type
     ) if company_doc else None
     
-    assignee_doc = await User.get(task.assigned_to) if task.assigned_to else None
+    assignee_doc = await _tenant_user(task.assigned_to, current_user.organization_id)
     assignee_min = UserMinResponse(
         id=assignee_doc.id, email=assignee_doc.email, full_name=assignee_doc.full_name, role=assignee_doc.role
     ) if assignee_doc else None
@@ -489,11 +501,11 @@ async def reopen_task(
     task = await _task_for_user(task_id, current_user)
         
     if task.status != "completed":
-        company_doc = await Company.get(task.company_id)
+        company_doc = await _tenant_company(task.company_id, current_user.organization_id)
         company_min = CompanyMinResponse(
             id=company_doc.id, name=company_doc.name, cin=company_doc.cin, company_type=company_doc.company_type
         ) if company_doc else None
-        assignee_doc = await User.get(task.assigned_to) if task.assigned_to else None
+        assignee_doc = await _tenant_user(task.assigned_to, current_user.organization_id)
         assignee_min = UserMinResponse(
             id=assignee_doc.id, email=assignee_doc.email, full_name=assignee_doc.full_name, role=assignee_doc.role
         ) if assignee_doc else None
@@ -533,12 +545,12 @@ async def reopen_task(
     )
     await audit.insert()
     
-    company_doc = await Company.get(task.company_id)
+    company_doc = await _tenant_company(task.company_id, current_user.organization_id)
     company_min = CompanyMinResponse(
         id=company_doc.id, name=company_doc.name, cin=company_doc.cin, company_type=company_doc.company_type
     ) if company_doc else None
     
-    assignee_doc = await User.get(task.assigned_to) if task.assigned_to else None
+    assignee_doc = await _tenant_user(task.assigned_to, current_user.organization_id)
     assignee_min = UserMinResponse(
         id=assignee_doc.id, email=assignee_doc.email, full_name=assignee_doc.full_name, role=assignee_doc.role
     ) if assignee_doc else None
@@ -581,12 +593,12 @@ async def delete_task(
     )
     await audit.insert()
     
-    company_doc = await Company.get(task.company_id)
+    company_doc = await _tenant_company(task.company_id, current_user.organization_id)
     company_min = CompanyMinResponse(
         id=company_doc.id, name=company_doc.name, cin=company_doc.cin, company_type=company_doc.company_type
     ) if company_doc else None
     
-    assignee_doc = await User.get(task.assigned_to) if task.assigned_to else None
+    assignee_doc = await _tenant_user(task.assigned_to, current_user.organization_id)
     assignee_min = UserMinResponse(
         id=assignee_doc.id, email=assignee_doc.email, full_name=assignee_doc.full_name, role=assignee_doc.role
     ) if assignee_doc else None

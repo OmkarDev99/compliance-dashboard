@@ -18,9 +18,12 @@ async def run_daily_compliance_check():
     # Fetch all tasks that are not completed
     tasks = await Task.find({"status": {"$ne": "completed"}}).to_list()
     
-    # Fetch all active admins
+    # Fetch active admins once, then keep recipients partitioned by tenant.
     admins = await User.find({"role": "admin", "is_active": True}).to_list()
-    admin_emails = [admin.email for admin in admins if admin.email]
+    admin_emails_by_org = {}
+    for admin in admins:
+        if admin.organization_id and admin.email:
+            admin_emails_by_org.setdefault(admin.organization_id, []).append(admin.email)
     
     today = date.today()
     seven_days_from_now = today + timedelta(days=7)
@@ -51,6 +54,9 @@ async def run_daily_compliance_check():
             if new_status == 'overdue' and old_status != 'overdue':
                 # Fetch assigned user
                 assigned_user = await User.get(task.assigned_to) if task.assigned_to else None
+                if assigned_user and assigned_user.organization_id != task.organization_id:
+                    logger.warning("Skipped cross-workspace assignee on task %s", task.id)
+                    assigned_user = None
                 
                 # Send notification to assignee
                 if assigned_user and assigned_user.email:
@@ -63,7 +69,7 @@ async def run_daily_compliance_check():
                     
                 # Also notify admins
                 assignee_name = assigned_user.full_name if assigned_user else 'Unassigned'
-                for admin_email in admin_emails:
+                for admin_email in admin_emails_by_org.get(task.organization_id, []):
                     await send_overdue_email(
                         email=admin_email,
                         task_title=f"{task.title} (Admin Notice - Assignee: {assignee_name})",

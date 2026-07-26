@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.core.security import decode_access_token
 from app.models.user import User
 from app.models.role import Role, DEFAULT_PERMISSIONS
+from app.models.organization import Organization
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
@@ -38,10 +39,19 @@ async def get_current_user(
         raise credentials_exception
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
-        
+
     token_org = payload.get("organization_id")
     if user.organization_id and token_org != str(user.organization_id):
         raise credentials_exception
+
+    # Platform administrators may operate without a tenant. Every normal user
+    # must belong to an active organization before any protected route runs.
+    if user.role != "platform_admin":
+        if not user.organization_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is not assigned to a workspace")
+        organization = await Organization.get(user.organization_id)
+        if not organization or organization.status != "active":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Workspace is unavailable")
     return user
 
 

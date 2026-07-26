@@ -114,7 +114,7 @@ async def get_audit_logs(
         if log.user_id:
             if log.user_id not in user_cache:
                 u = await User.get(log.user_id)
-                if u:
+                if u and u.organization_id == current_user.organization_id:
                     user_cache[log.user_id] = UserMinResponse(
                         id=u.id, email=u.email, full_name=u.full_name, role=u.role
                     )

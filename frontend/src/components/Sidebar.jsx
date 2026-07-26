@@ -7,11 +7,18 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useQuery } from '@tanstack/react-query';
+import api from '../services/api';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { mode, isCS, isCA, title, subtitle } = useWorkspace();
+  const { isCS, title } = useWorkspace();
+  const { data: organization } = useQuery({
+    queryKey: ['organization'],
+    queryFn: async () => (await api.get('/organizations/current')).data,
+    staleTime: 300000,
+  });
 
   const links = isCS ? [
     { to: '/dashboard', label: 'Overview', icon: LayoutDashboard },
@@ -39,6 +46,7 @@ const Sidebar = () => {
     links.push({ to: '/organization', label: 'Firm settings', icon: UsersRound });
   } else if (user?.role === 'partner') {
     links.push({ to: '/reports', label: 'Reports', icon: BarChart3 });
+    links.push({ to: '/organization', label: 'Firm settings', icon: UsersRound });
   }
 
   const initials = (user?.full_name || user?.email || 'CS')
@@ -67,8 +75,8 @@ const Sidebar = () => {
             <ShieldCheck className="h-[18px] w-[18px] text-white" />
           </div>
           <div>
-            <p className="text-[13px] font-semibold tracking-wide text-white">{title}</p>
-            <p className="text-[10px] text-slate-500">{subtitle}</p>
+            <p className="max-w-[154px] truncate text-[13px] font-semibold tracking-wide text-white">{organization?.name || title}</p>
+            <p className="text-[10px] text-slate-500">{isCS ? 'CS workspace' : 'CA workspace'} · Private tenant</p>
           </div>
         </div>
 
