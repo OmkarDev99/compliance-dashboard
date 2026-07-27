@@ -312,8 +312,25 @@ const TaskList = () => {
                       <td className={`p-4 font-mono ${deadlineColor}`}>
                         {formatDate(task.due_date)}
                       </td>
-                      <td className="p-4">
-                        <StatusBadge status={task.status} />
+                      <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={task.status}
+                          onChange={(e) => {
+                            updateMutation.mutate({
+                              id: task.id,
+                              data: { status: e.target.value }
+                            });
+                          }}
+                          className="bg-white border border-[#E5E7EB] hover:border-[#2563EB] rounded px-1.5 py-0.5 text-[11px] font-semibold text-[#0F172A] cursor-pointer outline-none transition-colors"
+                        >
+                          <option value="pending">PENDING</option>
+                          <option value="in_progress">IN PROGRESS</option>
+                          <option value="completed_by_executive">COMPLETED BY EXECUTIVE</option>
+                          <option value="waiting_for_review">WAITING FOR REVIEW</option>
+                          <option value="approved">APPROVED</option>
+                          <option value="returned_with_comments">RETURNED WITH COMMENTS</option>
+                          <option value="closed">CLOSED</option>
+                        </select>
                       </td>
                       <td className="p-4 text-[#0F172A]">
                         {assigned ? assigned.full_name || assigned.email : 'Unassigned'}

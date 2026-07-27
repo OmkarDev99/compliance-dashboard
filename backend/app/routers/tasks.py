@@ -390,9 +390,6 @@ async def update_task(
 ):
     task = await _task_for_user(task_id, current_user)
 
-    if "status" in task_in.model_fields_set or "current_stage" in task_in.model_fields_set:
-        raise HTTPException(status_code=400, detail="Workflow status can only be changed through the task transition endpoint")
-
     permissions = await get_permissions(current_user)
     if any(key in task_in.model_fields_set for key in ("assigned_to", "assigned_team", "assigned_user")) and "can_assign_tasks" not in permissions:
         raise HTTPException(status_code=403, detail="Missing required permission")
@@ -416,13 +413,29 @@ async def update_task(
         status_changed = True
 
         # Keep completion metadata consistent for direct status changes.
-        if new_status == "completed":
+        if new_status in ("completed", "closed", "approved"):
             task.completed_by = current_user.id
             task.completed_at = datetime.utcnow()
-        elif old_status == "completed":
+        elif old_status in ("completed", "closed", "approved"):
             task.completed_by = None
             task.completed_at = None
         task.status_manually_set = True
+
+        # Sync current_stage based on status
+        if new_status == "pending":
+            task.current_stage = "executive"
+        elif new_status == "in_progress":
+            task.current_stage = "executive"
+        elif new_status == "completed_by_executive":
+            task.current_stage = "executive"
+        elif new_status == "waiting_for_review":
+            task.current_stage = "team_lead"
+        elif new_status == "approved":
+            task.current_stage = "partner"
+        elif new_status == "returned_with_comments":
+            task.current_stage = "executive"
+        elif new_status == "closed":
+            task.current_stage = "closed"
         
     for field, value in update_data.items():
         setattr(task, field, value)

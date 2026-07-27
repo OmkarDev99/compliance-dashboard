@@ -101,10 +101,25 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
       <div className="fixed inset-y-0 right-0 z-50 w-[480px] h-screen bg-white border-l border-[#E5E7EB] shadow-2xl flex flex-col">
         {/* Header */}
         <div className="p-4 border-b border-[#E5E7EB] flex items-center justify-between bg-[#F8FAFC]">
-          <div className="flex items-center space-x-3 min-w-0 pr-4">
-            <StatusBadge status={task?.status} />
+            <select
+              value={task?.status || ''}
+              onChange={(e) => {
+                updateTaskMutation.mutate({
+                  id: taskId,
+                  data: { status: e.target.value }
+                });
+              }}
+              className="bg-white border border-[#E5E7EB] hover:border-[#2563EB] rounded px-2 py-1 text-xs font-semibold text-[#0F172A] cursor-pointer outline-none transition-colors"
+            >
+              <option value="pending">PENDING</option>
+              <option value="in_progress">IN PROGRESS</option>
+              <option value="completed_by_executive">COMPLETED BY EXECUTIVE</option>
+              <option value="waiting_for_review">WAITING FOR REVIEW</option>
+              <option value="approved">APPROVED</option>
+              <option value="returned_with_comments">RETURNED WITH COMMENTS</option>
+              <option value="closed">CLOSED</option>
+            </select>
             <span className="text-[11px] text-[#64748B] font-mono select-all truncate">ID: {taskId.slice(0, 8)}</span>
-          </div>
           <button
             onClick={onClose}
             className="text-[#64748B] hover:text-[#0F172A] p-1 rounded-md hover:bg-[#F1F5F9] transition-colors"
