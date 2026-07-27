@@ -3,80 +3,71 @@ import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.models.task import Task
 from app.models.user import User
-from app.services.notifier import send_overdue_email
+from app.models.team import Team
+from app.models.company import Company
+from app.services.notifications import create_notification
 import logging
 
 logger = logging.getLogger(__name__)
 
 async def run_daily_compliance_check():
     """
-    Query all non-completed tasks and update their status.
+    Evaluate deadline notifications for active tasks.
     If a task changes to 'overdue', trigger notifier.py
     """
     logger.info("Starting daily compliance check job...")
     
-    # Fetch all tasks that are not completed
-    tasks = await Task.find({"status": {"$ne": "completed"}}).to_list()
-    
-    # Fetch active admins once, then keep recipients partitioned by tenant.
-    admins = await User.find({"role": "admin", "is_active": True}).to_list()
-    admin_emails_by_org = {}
-    for admin in admins:
-        if admin.organization_id and admin.email:
-            admin_emails_by_org.setdefault(admin.organization_id, []).append(admin.email)
+    # Workflow status is never changed by reminders or escalations.
+    tasks = await Task.find({"status": {"$ne": "closed"}}).to_list()
     
     today = date.today()
-    seven_days_from_now = today + timedelta(days=7)
-    
     updated_count = 0
-    overdue_emails_sent = 0
     
     for task in tasks:
-        # Respect a status explicitly chosen by a CS user.
-        if getattr(task, "status_manually_set", False):
+        if not task.organization_id:
             continue
-        old_status = task.status
-        new_status = old_status
-        
-        if task.due_date < today:
-            new_status = 'overdue'
-        elif today <= task.due_date <= seven_days_from_now:
-            new_status = 'due_soon'
-        else:
-            new_status = 'upcoming'
-            
-        if old_status != new_status:
-            task.status = new_status
-            await task.save()
+        days_to_due = (task.due_date - today).days
+        if days_to_due in {7, 3, 1, 0}:
+            await create_notification(
+                organization_id=task.organization_id, user_id=task.assigned_to, task_id=task.id,
+                type="reminders", title="Task due reminder",
+                message=f"{task.title} is due {'today' if days_to_due == 0 else f'in {days_to_due} day(s)'}.",
+                dedupe_key=f"task:{task.id}:reminder:{task.due_date.isoformat()}:{days_to_due}",
+            )
             updated_count += 1
-            
-            # Check if newly overdue
-            if new_status == 'overdue' and old_status != 'overdue':
-                # Fetch assigned user
-                assigned_user = await User.get(task.assigned_to) if task.assigned_to else None
-                if assigned_user and assigned_user.organization_id != task.organization_id:
-                    logger.warning("Skipped cross-workspace assignee on task %s", task.id)
-                    assigned_user = None
-                
-                # Send notification to assignee
-                if assigned_user and assigned_user.email:
-                    await send_overdue_email(
-                        email=assigned_user.email,
-                        task_title=task.title,
-                        due_date=task.due_date.isoformat()
-                    )
-                    overdue_emails_sent += 1
-                    
-                # Also notify admins
-                assignee_name = assigned_user.full_name if assigned_user else 'Unassigned'
-                for admin_email in admin_emails_by_org.get(task.organization_id, []):
-                    await send_overdue_email(
-                        email=admin_email,
-                        task_title=f"{task.title} (Admin Notice - Assignee: {assignee_name})",
-                        due_date=task.due_date.isoformat()
-                    )
+
+        overdue_days = (today - task.due_date).days
+        if overdue_days >= 1:
+            await create_notification(
+                organization_id=task.organization_id, user_id=task.assigned_to, task_id=task.id,
+                type="escalations", title="Task overdue",
+                message=f"{task.title} is overdue. Please resolve it immediately.",
+                dedupe_key=f"task:{task.id}:overdue:executive",
+            )
+        if overdue_days >= 3:
+            team_id = task.assigned_team_id or task.assigned_team
+            team = await Team.get(team_id) if team_id else None
+            manager_id = team.manager_id if team and team.organization_id == task.organization_id else None
+            if not manager_id:
+                company = await Company.get(task.company_id)
+                manager_id = company.manager_id if company and company.organization_id == task.organization_id else None
+            await create_notification(
+                organization_id=task.organization_id, user_id=manager_id, task_id=task.id,
+                type="escalations", title="Manager escalation: overdue task",
+                message=f"{task.title} has been overdue for 3 days.",
+                dedupe_key=f"task:{task.id}:overdue:manager",
+            )
+        if overdue_days >= 7:
+            company = await Company.get(task.company_id)
+            partner_id = (company.relationship_partner_id if company and company.organization_id == task.organization_id else None) or task.approver_id or task.approver
+            await create_notification(
+                organization_id=task.organization_id, user_id=partner_id, task_id=task.id,
+                type="escalations", title="Partner escalation: overdue task",
+                message=f"{task.title} has been overdue for 7 days.",
+                dedupe_key=f"task:{task.id}:overdue:partner",
+            )
                         
-    logger.info(f"Daily compliance check completed. Updated {updated_count} tasks. Overdue emails sent: {overdue_emails_sent}.")
+    logger.info(f"Daily notification check completed. Processed {updated_count} reminder events.")
 
 scheduler = AsyncIOScheduler()
 

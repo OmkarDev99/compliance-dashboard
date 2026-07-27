@@ -5,6 +5,11 @@ export const getReportsSummary = async (params = {}) => {
   return response.data;
 };
 
+export const getPartnerDashboard = async (params = {}) => {
+  const response = await api.get('/reports/partner-dashboard', { params });
+  return response.data;
+};
+
 export const getCompanyReport = async (id) => {
   const response = await api.get(`/reports/company/${id}`);
   return response.data;
@@ -19,4 +24,3 @@ export const getCompaniesReports = async () => {
   const response = await api.get('/reports/companies');
   return response.data;
 };
-

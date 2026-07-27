@@ -5,7 +5,7 @@ import {
   AlertTriangle, ArrowRight, BookOpen, Building2, CalendarClock,
   CheckCircle2, CircleDot, Plus, Sparkles, UsersRound, FileSpreadsheet, RefreshCw
 } from 'lucide-react';
-import { getReportsSummary } from '../services/reports';
+import { getPartnerDashboard, getReportsSummary } from '../services/reports';
 import { getTasks } from '../services/tasks';
 import { useAuth } from '../context/AuthContext';
 import { useWorkspace } from '../context/WorkspaceContext';
@@ -28,7 +28,7 @@ const Metric = ({ label, value, helper, icon: Icon, tone = 'blue' }) => {
         <div>
           <p className="eyebrow">{label}</p>
           <p className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-slate-950">
-            {Number(value || 0).toLocaleString()}
+            {typeof value === 'number' ? value.toLocaleString() : (value || 0)}
           </p>
           <p className="mt-1 text-[10px] text-slate-500">{helper}</p>
         </div>
@@ -45,22 +45,78 @@ const Dashboard = () => {
   const { user } = useAuth();
   const { mode, isCS, isCA } = useWorkspace();
   const [taskId, setTaskId] = useState(null);
+  const isPartner = user?.role === 'partner';
+
+  const { data: partnerDashboard, isLoading: partnerDashboardLoading } = useQuery({
+    queryKey: ['partner-dashboard', mode],
+    queryFn: () => getPartnerDashboard({ category: mode }),
+    enabled: isPartner,
+    staleTime: 30000,
+  });
 
   const { data: summary, isLoading: summaryLoading } = useQuery({ 
     queryKey: ['reports-summary', mode], 
-    queryFn: () => getReportsSummary({ category: mode }) 
+    queryFn: () => getReportsSummary({ category: mode }),
+    enabled: !isPartner,
   });
   const { data: tasks = [], isLoading: tasksLoading } = useQuery({ 
     queryKey: ['tasks', mode], 
     queryFn: () => getTasks({ category: mode }), 
-    staleTime: 30000 
+    staleTime: 30000,
+    enabled: !isPartner,
   });
   const { data: logs = [], isLoading: logsLoading } = useQuery({ 
     queryKey: ['system-audit-logs'], 
-    queryFn: async () => (await api.get('/reports/audit-logs?limit=6')).data 
+    queryFn: async () => (await api.get('/reports/audit-logs?limit=6')).data,
+    enabled: !isPartner,
   });
 
-  if (summaryLoading || tasksLoading || logsLoading) return <DashboardSkeleton />;
+  if (partnerDashboardLoading || (!isPartner && (summaryLoading || tasksLoading || logsLoading))) return <DashboardSkeleton />;
+
+  if (isPartner) {
+    const data = partnerDashboard || {};
+    const cards = [
+      ['Clients', data.clients, 'Active portfolio', Building2, 'blue'],
+      ['Pending Filings', data.pending_filings, 'Across all clients', FileSpreadsheet, 'amber'],
+      ['Overdue', data.overdue, 'Need immediate attention', AlertTriangle, 'red'],
+      ['High Risk Clients', data.high_risk_clients, 'One or more overdue filings', AlertTriangle, 'red'],
+      ['Team Productivity', `${data.team_productivity ?? 0}%`, 'Closed filings rate', UsersRound, 'green'],
+      ['Upcoming Due', data.upcoming_due, 'Due in the next 7 days', CalendarClock, 'amber'],
+    ];
+    return (
+      <div className="page-transition space-y-6">
+        <section className="overflow-hidden rounded-[24px] bg-[#0B1220] px-6 py-7 text-white shadow-[0_20px_60px_rgba(11,18,32,0.18)] sm:px-8">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-300">Partner dashboard</p>
+          <h1 className="mt-3 text-2xl font-semibold tracking-[-0.035em] sm:text-[32px]">Portfolio health at a glance.</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Focus on client risk, filing delivery and team performance—not individual task lists.</p>
+        </section>
+
+        <section className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+          {cards.map(([label, value, helper, icon, tone]) => <Metric key={label} label={label} value={value} helper={helper} icon={icon} tone={tone} />)}
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-3">
+          <Link to="/clients" className="premium-card group p-6 transition hover:-translate-y-0.5 hover:border-blue-200">
+            <p className="eyebrow">Top Delayed Team</p>
+            <p className="mt-4 text-xl font-semibold text-slate-950">{data.top_delayed_team}</p>
+            <p className="mt-2 text-xs text-slate-500">Prioritize this team’s overdue client work.</p>
+            <span className="mt-5 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600">View clients <ArrowRight className="h-3.5 w-3.5" /></span>
+          </Link>
+          <div className="premium-card p-6">
+            <p className="eyebrow">Top Performer</p>
+            <p className="mt-4 text-xl font-semibold text-emerald-700">{data.top_performer}</p>
+            <p className="mt-2 text-xs text-slate-500">Most closed filings in the current portfolio.</p>
+          </div>
+          <Link to="/clients" className="premium-card group p-6 transition hover:-translate-y-0.5 hover:border-rose-200">
+            <p className="eyebrow">Most Delayed Client</p>
+            <p className="mt-4 text-xl font-semibold text-rose-700">{data.most_delayed_client}</p>
+            <p className="mt-2 text-xs text-slate-500">Client with the highest number of overdue filings.</p>
+            <span className="mt-5 inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600">Open portfolio <ArrowRight className="h-3.5 w-3.5" /></span>
+          </Link>
+        </section>
+      </div>
+    );
+  }
 
   const urgentTasks = [...tasks]
     .filter((task) => task.status !== 'completed')

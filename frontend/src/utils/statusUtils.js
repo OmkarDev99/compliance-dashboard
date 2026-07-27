@@ -23,8 +23,8 @@ export const STATUS_MAP = {
     indicatorClass: 'bg-[#22C55E]',
     textClass: 'text-[#22C55E]',
   },
-  completed: {
-    label: 'COMPLETED',
+  completed_by_executive: {
+    label: 'COMPLETED BY EXECUTIVE',
     badgeClass: 'bg-[#3B82F6]/10 text-[#3B82F6]',
     indicatorClass: 'bg-[#3B82F6]',
     textClass: 'text-[#3B82F6]',
@@ -34,12 +34,6 @@ export const STATUS_MAP = {
     badgeClass: 'bg-slate-100 text-slate-700 border border-slate-200',
     indicatorClass: 'bg-slate-400',
     textClass: 'text-slate-700',
-  },
-  assigned: {
-    label: 'ASSIGNED',
-    badgeClass: 'bg-indigo-50 text-indigo-700 border border-indigo-250',
-    indicatorClass: 'bg-indigo-500',
-    textClass: 'text-indigo-700',
   },
   in_progress: {
     label: 'IN PROGRESS',
@@ -53,8 +47,8 @@ export const STATUS_MAP = {
     indicatorClass: 'bg-purple-500',
     textClass: 'text-purple-700',
   },
-  changes_requested: {
-    label: 'CHANGES REQUESTED',
+  returned_with_comments: {
+    label: 'RETURNED WITH COMMENTS',
     badgeClass: 'bg-amber-50 text-amber-700 border border-amber-200',
     indicatorClass: 'bg-amber-500',
     textClass: 'text-amber-700',
@@ -65,11 +59,11 @@ export const STATUS_MAP = {
     indicatorClass: 'bg-emerald-500',
     textClass: 'text-emerald-700',
   },
-  rejected: {
-    label: 'REJECTED',
-    badgeClass: 'bg-rose-50 text-rose-700 border border-rose-200',
-    indicatorClass: 'bg-rose-500',
-    textClass: 'text-rose-700',
+  closed: {
+    label: 'CLOSED',
+    badgeClass: 'bg-slate-100 text-slate-700 border border-slate-200',
+    indicatorClass: 'bg-slate-500',
+    textClass: 'text-slate-700',
   },
 };
 

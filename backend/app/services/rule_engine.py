@@ -50,7 +50,7 @@ async def run_rule_engine_for_company(db, company: Company, user_id: Optional[uu
                 title=title,
                 description=description,
                 due_date=due_date,
-                status="upcoming",
+                status="pending",
                 assigned_to=company.assigned_to,
                 assigned_user=company.assigned_to,
                 assigned_user_id=company.assigned_to,

@@ -45,8 +45,6 @@ const ReviewQueue = () => {
 
   // Calculate counts for stats
   const leadCount = tasks?.filter((t) => t.current_stage === 'team_lead').length || 0;
-  const managerCount = tasks?.filter((t) => t.current_stage === 'manager').length || 0;
-  const partnerCount = tasks?.filter((t) => t.current_stage === 'partner').length || 0;
 
   return (
     <div className="space-y-6 page-transition relative pb-20">
@@ -57,7 +55,7 @@ const ReviewQueue = () => {
       </div>
 
       {/* Stats Board */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4">
         <div 
           onClick={() => setSelectedStage('team_lead')}
           className={`bg-white border p-4 rounded-lg shadow-sm cursor-pointer hover:border-indigo-400 transition-all ${selectedStage === 'team_lead' ? 'ring-2 ring-indigo-500 border-indigo-400' : 'border-[#E5E7EB]'}`}
@@ -73,35 +71,6 @@ const ReviewQueue = () => {
           </div>
         </div>
 
-        <div 
-          onClick={() => setSelectedStage('manager')}
-          className={`bg-white border p-4 rounded-lg shadow-sm cursor-pointer hover:border-purple-400 transition-all ${selectedStage === 'manager' ? 'ring-2 ring-purple-500 border-purple-400' : 'border-[#E5E7EB]'}`}
-        >
-          <div className="flex justify-between items-start">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Manager Review</span>
-              <span className="text-2xl font-bold text-slate-800">{managerCount}</span>
-            </div>
-            <div className="bg-purple-50 text-purple-600 p-2 rounded-md">
-              <ClipboardCheck className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
-
-        <div 
-          onClick={() => setSelectedStage('partner')}
-          className={`bg-white border p-4 rounded-lg shadow-sm cursor-pointer hover:border-emerald-400 transition-all ${selectedStage === 'partner' ? 'ring-2 ring-emerald-500 border-emerald-400' : 'border-[#E5E7EB]'}`}
-        >
-          <div className="flex justify-between items-start">
-            <div className="space-y-1">
-              <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider block">Partner Approval</span>
-              <span className="text-2xl font-bold text-slate-800">{partnerCount}</span>
-            </div>
-            <div className="bg-emerald-50 text-emerald-600 p-2 rounded-md">
-              <CheckSquare className="w-5 h-5" />
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Advanced Filter Bar */}
@@ -123,9 +92,7 @@ const ReviewQueue = () => {
             <div className="flex flex-wrap gap-1.5">
               {[
                 { value: 'all', label: 'ALL STAGES' },
-                { value: 'team_lead', label: 'TEAM LEAD' },
-                { value: 'manager', label: 'MANAGER' },
-                { value: 'partner', label: 'PARTNER' }
+                { value: 'team_lead', label: 'TEAM LEAD' }
               ].map((stage) => (
                 <button
                   key={stage.value}
@@ -166,9 +133,7 @@ const ReviewQueue = () => {
                 {filteredTasks.map((task) => {
                   const assigned = users?.find((u) => u.id === task.assigned_to);
                   const stageLabels = {
-                    team_lead: 'Team Lead',
-                    manager: 'Manager',
-                    partner: 'Partner'
+                    team_lead: 'Team Lead'
                   };
 
                   return (

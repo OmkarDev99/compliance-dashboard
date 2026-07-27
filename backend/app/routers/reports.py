@@ -1,15 +1,74 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import uuid
+from datetime import date, timedelta
 from typing import List, Optional
 from app.core.dependencies import get_current_user
 from app.models.company import Company
 from app.models.task import Task
 from app.models.user import User
+from app.models.team import Team
 from app.models.audit_log import AuditLog
 from app.schemas.report import SummaryReportResponse, CompanyReportResponse, UserTasksReport
 from app.schemas.task import AuditLogMinResponse, UserMinResponse
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+@router.get("/partner-dashboard")
+async def get_partner_dashboard(
+    category: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+):
+    """Portfolio-level measures for partners; no unapproved task records leave this endpoint."""
+    company_query = {"is_active": True, "organization_id": current_user.organization_id}
+    if category == "cs":
+        company_query["client_type"] = {"$in": ["cs", "both"]}
+    elif category == "ca":
+        company_query["client_type"] = {"$in": ["ca", "both"]}
+    companies = await Company.find(company_query).to_list()
+    company_ids = [company.id for company in companies]
+    task_query = {"organization_id": current_user.organization_id, "company_id": {"$in": company_ids}}
+    if category:
+        task_query["category"] = category
+    tasks = await Task.find(task_query).to_list()
+
+    today = date.today()
+    open_tasks = [task for task in tasks if task.status != "closed"]
+    overdue = [task for task in open_tasks if task.due_date < today]
+    upcoming_due = [task for task in open_tasks if today <= task.due_date <= today + timedelta(days=7)]
+    high_risk_company_ids = {task.company_id for task in overdue}
+    closed_count = sum(task.status == "closed" for task in tasks)
+    productivity = round((closed_count / len(tasks) * 100) if tasks else 100)
+
+    teams = await Team.find({"organization_id": current_user.organization_id}).to_list()
+    teams_by_id = {team.id: team.name for team in teams}
+    delayed_by_team = {}
+    for task in overdue:
+        key = task.assigned_team_id or task.assigned_team
+        delayed_by_team[key] = delayed_by_team.get(key, 0) + 1
+    top_team_id = max(delayed_by_team, key=delayed_by_team.get, default=None)
+
+    users = await User.find({"organization_id": current_user.organization_id, "is_active": True}).to_list()
+    users_by_id = {user.id: user.full_name or user.email for user in users}
+    closed_by_user = {}
+    for task in tasks:
+        if task.status == "closed" and task.completed_by:
+            closed_by_user[task.completed_by] = closed_by_user.get(task.completed_by, 0) + 1
+    top_user_id = max(closed_by_user, key=closed_by_user.get, default=None)
+
+    company_names = {company.id: company.name for company in companies}
+    delayed_by_company = {}
+    for task in overdue:
+        delayed_by_company[task.company_id] = delayed_by_company.get(task.company_id, 0) + 1
+    top_company_id = max(delayed_by_company, key=delayed_by_company.get, default=None)
+
+    return {
+        "clients": len(companies), "pending_filings": len(open_tasks), "overdue": len(overdue),
+        "high_risk_clients": len(high_risk_company_ids), "team_productivity": productivity,
+        "upcoming_due": len(upcoming_due),
+        "top_delayed_team": teams_by_id.get(top_team_id, "No delayed team"),
+        "top_performer": users_by_id.get(top_user_id, "No completed work yet"),
+        "most_delayed_client": company_names.get(top_company_id, "No delayed client"),
+    }
 
 @router.get("/summary", response_model=SummaryReportResponse)
 async def get_summary_report(

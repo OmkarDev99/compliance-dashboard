@@ -21,6 +21,7 @@ async def init_db():
     from app.models.role import Role
     from app.models.compliance_calendar import ComplianceCalendar
     from app.models.task_comment import TaskComment
+    from app.models.notification import Notification, NotificationPreference
     
     # Initialize Beanie with models
     database = client.get_default_database()
@@ -31,8 +32,24 @@ async def init_db():
             Company,
             ComplianceRule,
             Task,
-            AuditLog, Organization, Team, Role, ComplianceCalendar, TaskComment
+            AuditLog, Organization, Team, Role, ComplianceCalendar, TaskComment, Notification, NotificationPreference
         ]
+    )
+
+    # Replace the retired multi-stage / deadline statuses with the approval
+    # workflow without deleting any historical task records.
+    task_collection = Task.get_pymongo_collection()
+    await task_collection.update_many(
+        {"status": {"$in": ["upcoming", "due_soon", "overdue", "assigned"]}},
+        {"$set": {"status": "pending", "current_stage": "executive"}},
+    )
+    await task_collection.update_many(
+        {"status": {"$in": ["changes_requested", "rejected"]}},
+        {"$set": {"status": "returned_with_comments", "current_stage": "executive"}},
+    )
+    await task_collection.update_many(
+        {"status": "completed"},
+        {"$set": {"status": "closed", "current_stage": "closed"}},
     )
 
     # Migrate tasks to have a default current_stage

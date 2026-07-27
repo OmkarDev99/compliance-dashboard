@@ -20,6 +20,7 @@ const RegulatoryUpdates = lazy(() => import('./pages/RegulatoryUpdates'));
 const OrganizationManagement = lazy(() => import('./pages/OrganizationManagement'));
 const ComplianceCalendar = lazy(() => import('./pages/ComplianceCalendar'));
 const ReviewQueue = lazy(() => import('./pages/ReviewQueue'));
+const WorkloadDashboard = lazy(() => import('./pages/WorkloadDashboard'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
 // Layout Assets
@@ -44,6 +45,13 @@ const AdminRoute = () => {
   if (loading) return <Loader fullScreen />;
   const hasAccess = isAuthenticated && (user?.role === 'admin' || user?.role === 'partner');
   return hasAccess ? <Outlet /> : <Navigate to="/dashboard" replace />;
+};
+
+const ManagerRoute = () => {
+  const { user, isAuthenticated, loading } = useAuth();
+  if (loading) return <Loader fullScreen />;
+  const workRole = (user?.designation || user?.role || '').toLowerCase().replace(' ', '_');
+  return isAuthenticated && ['manager', 'partner'].includes(workRole) ? <Outlet /> : <Navigate to="/dashboard" replace />;
 };
 
 const Layout = () => {
@@ -80,6 +88,7 @@ const AppRoutes = () => {
           <Route path="/clients/:id" element={<ClientDetail />} />
           <Route path="/tasks" element={<TaskList />} />
           <Route path="/review-queue" element={<ReviewQueue />} />
+          <Route element={<ManagerRoute />}><Route path="/workload" element={<WorkloadDashboard />} /></Route>
           <Route path="/calendar" element={<ComplianceCalendar />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/reconciliation" element={<Reconciliation />} />

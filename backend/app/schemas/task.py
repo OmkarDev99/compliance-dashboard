@@ -33,7 +33,7 @@ class TaskBase(BaseModel):
     title: str
     description: Optional[str] = None
     due_date: date
-    status: str = "upcoming"  # upcoming, due_soon, overdue, completed
+    status: str = "pending"
     assigned_to: Optional[uuid.UUID] = None
     assigned_team: Optional[uuid.UUID] = None
     assigned_user: Optional[uuid.UUID] = None
@@ -51,7 +51,8 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     due_date: Optional[date] = None
-    status: Optional[Literal["upcoming", "due_soon", "overdue", "completed", "pending", "assigned", "in_progress", "waiting_for_review", "changes_requested", "approved", "rejected"]] = None
+    # Lifecycle states are changed only through /transition, never by a generic edit.
+    status: Optional[Literal["pending", "in_progress", "completed_by_executive", "waiting_for_review", "approved", "closed", "returned_with_comments"]] = None
     current_stage: Optional[str] = None
     assigned_to: Optional[uuid.UUID] = None
     notes: Optional[str] = None

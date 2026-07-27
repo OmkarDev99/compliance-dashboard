@@ -48,6 +48,8 @@ const Sidebar = () => {
     links.push({ to: '/reports', label: 'Reports', icon: BarChart3 });
     links.push({ to: '/organization', label: 'Firm settings', icon: UsersRound });
   }
+  const workRole = (user?.designation || user?.role || '').toLowerCase().replace(' ', '_');
+  if (workRole === 'manager' || workRole === 'partner') links.splice(2, 0, { to: '/workload', label: 'Workload', icon: UsersRound });
 
   const initials = (user?.full_name || user?.email || 'CS')
     .split(/[\s@]+/).filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase();

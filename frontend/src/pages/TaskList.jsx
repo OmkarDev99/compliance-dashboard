@@ -199,15 +199,15 @@ const TaskList = () => {
         {/* Status Pills */}
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-[#F1F5F9]">
           <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider mr-2">Status:</span>
-          {['overdue', 'due_soon', 'upcoming', 'completed'].map((status) => {
+          {['pending', 'in_progress', 'completed_by_executive', 'waiting_for_review', 'approved', 'returned_with_comments', 'closed'].map((status) => {
             const isSelected = selectedStatuses.includes(status);
             const label = status.replace('_', ' ').toUpperCase();
             
             let pillClass = '';
-            if (status === 'overdue') pillClass = isSelected ? 'bg-[#EF4444] text-white' : 'border border-[#EF4444]/25 text-[#EF4444] hover:bg-[#EF4444]/8';
-            else if (status === 'due_soon') pillClass = isSelected ? 'bg-[#F59E0B] text-white' : 'border border-[#F59E0B]/25 text-[#F59E0B] hover:bg-[#F59E0B]/8';
-            else if (status === 'upcoming') pillClass = isSelected ? 'bg-[#22C55E] text-white' : 'border border-[#22C55E]/25 text-[#22C55E] hover:bg-[#22C55E]/8';
-            else if (status === 'completed') pillClass = isSelected ? 'bg-[#3B82F6] text-white' : 'border border-[#3B82F6]/25 text-[#3B82F6] hover:bg-[#3B82F6]/8';
+            if (status === 'returned_with_comments') pillClass = isSelected ? 'bg-[#F59E0B] text-white' : 'border border-[#F59E0B]/25 text-[#F59E0B] hover:bg-[#F59E0B]/8';
+            else if (status === 'waiting_for_review') pillClass = isSelected ? 'bg-purple-600 text-white' : 'border border-purple-200 text-purple-700 hover:bg-purple-50';
+            else if (status === 'closed') pillClass = isSelected ? 'bg-slate-700 text-white' : 'border border-slate-200 text-slate-700 hover:bg-slate-50';
+            else pillClass = isSelected ? 'bg-[#2563EB] text-white' : 'border border-[#2563EB]/25 text-[#2563EB] hover:bg-[#2563EB]/8';
 
             return (
               <button
@@ -284,7 +284,7 @@ const TaskList = () => {
               <tbody className="divide-y divide-[#F1F5F9]">
                 {filteredTasks.map((task) => {
                   const isChecked = selectedTaskIds.includes(task.id);
-                  const deadlineColor = getDeadlineColorClass(task.due_date, task.status === 'completed');
+                  const deadlineColor = getDeadlineColorClass(task.due_date, task.status === 'closed');
                   const assigned = users?.find((u) => u.id === task.assigned_to);
 
                   return (

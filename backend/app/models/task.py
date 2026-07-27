@@ -11,8 +11,10 @@ class Task(Document):
     title: str
     description: str | None = None
     due_date: date
-    status: str = "upcoming"  # upcoming, due_soon, overdue, completed
-    current_stage: str = "executive"  # executive, team_lead, manager, partner, completed
+    # Workflow status is intentionally separate from deadline calculations.  A task
+    # always starts pending and can reach closed only through the approval flow.
+    status: str = "pending"
+    current_stage: str = "executive"  # executive, team_lead, partner, closed
     status_manually_set: bool = False
     assigned_to: uuid.UUID | None = None
     created_by: uuid.UUID | None = None

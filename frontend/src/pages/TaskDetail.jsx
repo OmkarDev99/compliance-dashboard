@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { X, Calendar, User, FileText, CheckCircle, RotateCcw, AlertTriangle } from 'lucide-react';
-import { useTaskDetails, useUpdateTaskMutation, useCompleteTaskMutation, useReopenTaskMutation, useTransitionTaskMutation, useAddCommentMutation } from '../hooks/useTasks';
+import { X, Calendar, User, FileText, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useTaskDetails, useUpdateTaskMutation, useTransitionTaskMutation, useAddCommentMutation } from '../hooks/useTasks';
 import { getUsers } from '../services/auth';
 import { useAuth } from '../context/AuthContext';
 import { formatDate, getDeadlineColorClass, getDeadlineLabel } from '../utils/dateUtils';
@@ -14,7 +14,6 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
   const [notesText, setNotesText] = useState('');
   const [refDocUrl, setRefDocUrl] = useState('');
   const [selectedAssignee, setSelectedAssignee] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('upcoming');
   const [workflowComment, setWorkflowComment] = useState('');
   const [newCommentText, setNewCommentText] = useState('');
 
@@ -27,8 +26,6 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
   });
 
   const updateTaskMutation = useUpdateTaskMutation();
-  const completeTaskMutation = useCompleteTaskMutation();
-  const reopenTaskMutation = useReopenTaskMutation();
   const transitionMutation = useTransitionTaskMutation();
   const addCommentMutation = useAddCommentMutation();
 
@@ -37,7 +34,6 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
       setNotesText(task.notes || '');
       setRefDocUrl(task.reference_doc || '');
       setSelectedAssignee(task.assigned_to || '');
-      setSelectedStatus(task.status || 'upcoming');
     }
   }, [task]);
 
@@ -46,9 +42,8 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
   const workRole = (currentUser?.designation || currentUser?.role || '').toLowerCase().replace(' ', '_');
   const userPermissions = currentUser?.permissions || [];
   
-  const canReviewAtLeadStage = isAdmin || workRole === 'team_lead' || workRole === 'manager' || workRole === 'partner' || userPermissions.includes('can_review_tasks');
-  const canReviewAtManagerStage = isAdmin || workRole === 'manager' || workRole === 'partner' || userPermissions.includes('can_review_tasks');
-  const canApproveAtPartnerStage = isAdmin || workRole === 'partner' || userPermissions.includes('can_approve_tasks');
+  const canReviewAtLeadStage = isAdmin || workRole === 'team_lead' || workRole === 'manager' || userPermissions.includes('can_review_tasks');
+  const canCloseApprovedWork = isAdmin || workRole === 'partner' || userPermissions.includes('can_approve_tasks');
 
   const handleWorkflowAction = (action) => {
     transitionMutation.mutate({
@@ -88,19 +83,8 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
     updateTaskMutation.mutate({ id: taskId, data: { assigned_to: newAssigneeId || null } });
   };
 
-  const handleComplete = () => completeTaskMutation.mutate(taskId);
-  const handleReopen = () => reopenTaskMutation.mutate(taskId);
 
-  const handleStatusChange = (e) => {
-    const status = e.target.value;
-    setSelectedStatus(status);
-    updateTaskMutation.mutate(
-      { id: taskId, data: { status } },
-      { onError: () => setSelectedStatus(task.status) }
-    );
-  };
-
-  const deadlineColor = task ? getDeadlineColorClass(task.due_date, task.status === 'completed') : '';
+  const deadlineColor = task ? getDeadlineColorClass(task.due_date, task.status === 'closed') : '';
   const deadlineLabel = task ? getDeadlineLabel(task.due_date) : '';
 
   const inputCls = "w-full h-9 bg-[#F8FAFC] border border-[#E5E7EB] rounded-md text-[#0F172A] text-xs px-3 focus:border-[#2563EB] outline-none";
@@ -175,38 +159,13 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
                     <span className={`text-base font-bold font-mono ${deadlineColor}`}>{formatDate(task.due_date)}</span>
                   </div>
                 </div>
-                {task.status !== 'completed' && (
+                {task.status !== 'closed' && (
                   <span className={`text-xs font-bold font-mono px-2 py-1 rounded bg-[#F1F5F9] ${deadlineColor}`}>
                     {deadlineLabel}
                   </span>
                 )}
               </div>
 
-              {/* Manual Status */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <label htmlFor="task-status" className="block text-xs font-bold text-[#64748B] uppercase tracking-wide">Task Status</label>
-                  <span className="text-[9px] text-[#94A3B8]">Manual CS override</span>
-                </div>
-                <select
-                  id="task-status"
-                  value={selectedStatus}
-                  onChange={handleStatusChange}
-                  disabled={updateTaskMutation.isPending}
-                  className={inputCls}
-                >
-                  <option value="upcoming">Upcoming</option>
-                  <option value="pending">Pending</option>
-                  <option value="assigned">Assigned</option>
-                  <option value="in_progress">In Progress</option>
-                  <option value="waiting_for_review">Waiting For Review</option>
-                  <option value="changes_requested">Changes Requested</option>
-                  <option value="approved">Approved</option>
-                  <option value="completed">Completed</option>
-                  <option value="rejected">Rejected</option>
-                </select>
-                <p className="text-[10px] leading-4 text-[#64748B]">Changing this value updates portfolio totals and records the change in the audit trail.</p>
-              </div>
 
               {/* Assignee */}
               <div className="space-y-2">
@@ -285,7 +244,7 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
               </div>
 
               {/* Workflow Review Panel */}
-              {task.status !== 'completed' && task.status !== 'rejected' && (
+              {task.status !== 'closed' && (
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-4">
                   <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider block">Workflow Review Stage</span>
                   <div className="flex items-center gap-2">
@@ -296,27 +255,27 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
                   </div>
 
                   {/* Executive Actions */}
-                  {(!task.current_stage || task.current_stage === 'executive') && (
+                  {(task.status === 'pending' || task.status === 'returned_with_comments' || task.status === 'in_progress' || task.status === 'completed_by_executive') && (
                     <div className="space-y-3">
                       <textarea
                         rows={2}
                         value={workflowComment}
                         onChange={(e) => setWorkflowComment(e.target.value)}
-                        placeholder="Submission comments / notes (optional)..."
+                        placeholder="Add completion or submission notes (optional)..."
                         className="w-full bg-white border border-[#E5E7EB] rounded-md p-2 text-xs outline-none focus:border-[#2563EB]"
                       />
                       <button
-                        onClick={() => handleWorkflowAction('submit')}
+                        onClick={() => handleWorkflowAction(task.status === 'in_progress' ? 'complete' : task.status === 'completed_by_executive' ? 'submit' : 'start')}
                         disabled={transitionMutation.isPending}
                         className="w-full h-8 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-xs font-bold transition-colors disabled:opacity-50"
                       >
-                        Submit for Team Lead Review
+                        {task.status === 'in_progress' ? 'Mark Completed by Executive' : task.status === 'completed_by_executive' ? 'Submit for Team Lead Review' : 'Start Work'}
                       </button>
                     </div>
                   )}
 
                   {/* Team Lead Stage */}
-                  {task.current_stage === 'team_lead' && (
+                  {task.status === 'waiting_for_review' && (
                     <div className="space-y-3">
                       {canReviewAtLeadStage ? (
                         <>
@@ -336,18 +295,11 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
                               Approve to Manager
                             </button>
                             <button
-                              onClick={() => handleWorkflowAction('request_changes')}
+                              onClick={() => handleWorkflowAction('return')}
                               disabled={transitionMutation.isPending}
                               className="h-8 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-xs font-bold transition-colors disabled:opacity-50"
                             >
-                              Request Changes
-                            </button>
-                            <button
-                              onClick={() => handleWorkflowAction('reject')}
-                              disabled={transitionMutation.isPending}
-                              className="h-8 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-xs font-bold transition-colors disabled:opacity-50"
-                            >
-                              Reject
+                              Return with Comments
                             </button>
                           </div>
                         </>
@@ -358,7 +310,7 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
                   )}
 
                   {/* Manager Stage */}
-                  {task.current_stage === 'manager' && (
+                  {false && task.current_stage === 'manager' && (
                     <div className="space-y-3">
                       {canReviewAtManagerStage ? (
                         <>
@@ -400,9 +352,9 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
                   )}
 
                   {/* Partner Stage */}
-                  {task.current_stage === 'partner' && (
+                  {task.status === 'approved' && (
                     <div className="space-y-3">
-                      {canApproveAtPartnerStage ? (
+                      {canCloseApprovedWork ? (
                         <>
                           <textarea
                             rows={2}
@@ -413,25 +365,11 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
                           />
                           <div className="grid grid-cols-3 gap-2">
                             <button
-                              onClick={() => handleWorkflowAction('approve')}
+                              onClick={() => handleWorkflowAction('close')}
                               disabled={transitionMutation.isPending}
                               className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-bold transition-colors disabled:opacity-50"
                             >
-                              Approve & Complete
-                            </button>
-                            <button
-                              onClick={() => handleWorkflowAction('request_changes')}
-                              disabled={transitionMutation.isPending}
-                              className="h-8 bg-amber-500 hover:bg-amber-600 text-white rounded-md text-xs font-bold transition-colors disabled:opacity-50"
-                            >
-                              Request Changes
-                            </button>
-                            <button
-                              onClick={() => handleWorkflowAction('reject')}
-                              disabled={transitionMutation.isPending}
-                              className="h-8 bg-rose-600 hover:bg-rose-700 text-white rounded-md text-xs font-bold transition-colors disabled:opacity-50"
-                            >
-                              Reject
+                              Close Task
                             </button>
                           </div>
                         </>
@@ -444,7 +382,7 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
               )}
 
               {/* Completion Log */}
-              {task.status === 'completed' && (
+              {task.status === 'closed' && (
                 <div className="bg-[#F0FDF4] border border-[#22C55E]/20 rounded-lg p-4 space-y-2 text-xs leading-relaxed text-[#64748B]">
                   <span className="font-bold text-[#0F172A] block">Completion Record</span>
                   <p>Completed by:{' '}
@@ -534,30 +472,6 @@ const TaskDetail = ({ taskId, isOpen, onClose }) => {
           )}
         </div>
 
-        {/* Footer Actions */}
-        {task && !isLoading && (
-          <div className="p-4 border-t border-[#E5E7EB] bg-[#F8FAFC] flex gap-3">
-            {task.status === 'completed' ? (
-              <button
-                onClick={handleReopen}
-                disabled={reopenTaskMutation.isPending}
-                className="flex-1 h-10 border border-[#E5E7EB] hover:bg-[#F1F5F9] text-[#0F172A] rounded-md text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50"
-              >
-                <RotateCcw className="w-4 h-4 text-[#F59E0B]" />
-                Reopen Task
-              </button>
-            ) : (
-              <button
-                onClick={handleComplete}
-                disabled={completeTaskMutation.isPending}
-                className="flex-1 h-10 bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-md text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 shadow-md"
-              >
-                <CheckCircle className="w-4 h-4" />
-                Mark Complete
-              </button>
-            )}
-          </div>
-        )}
       </div>
     </>
   );
