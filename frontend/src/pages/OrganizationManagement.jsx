@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, Check, GitBranch, Save, ShieldCheck, UsersRound } from 'lucide-react';
+import { Building2, Check, Crown, GitBranch, Pencil, Save, ShieldCheck, UsersRound, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 
@@ -36,10 +36,42 @@ const Metric = ({ label, value }) => (
   </div>
 );
 
+const TeamStructure = ({ organization, partners, teams, people, onEdit }) => {
+  const peopleById = Object.fromEntries(people.map((person) => [person.id, person]));
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70 p-4 sm:p-6">
+      <div className="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">{organization?.name || 'Firm workspace'}</p>
+        <div className="mt-3 flex flex-wrap justify-center gap-2">
+          {partners.length ? partners.map((partner) => <span key={partner.id} className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800"><Crown className="h-3.5 w-3.5" />{partner.name}</span>) : <span className="text-xs text-slate-500">Assign a partner to lead this workspace</span>}
+        </div>
+      </div>
+      <div className="mx-auto h-8 w-px bg-slate-300" />
+      <div className="relative grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {teams.length > 1 && <div className="absolute left-[16.66%] right-[16.66%] top-0 hidden h-px bg-slate-300 xl:block" />}
+        {teams.length ? teams.map((team) => {
+          const manager = peopleById[team.manager_id];
+          const members = (team.member_ids || []).map((id) => peopleById[id]).filter(Boolean);
+          return <article key={team.id} className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="absolute left-1/2 top-[-17px] hidden h-4 w-px bg-slate-300 xl:block" />
+            <div className="flex items-start justify-between gap-3">
+              <div><p className="text-sm font-semibold text-slate-900">{team.name}</p><p className="mt-1 text-[10px] text-slate-400">{members.length} member{members.length === 1 ? '' : 's'}</p></div>
+              <button type="button" onClick={() => onEdit(team)} className="rounded-lg border border-slate-200 p-2 text-slate-400 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600" aria-label={`Edit ${team.name}`}><Pencil className="h-3.5 w-3.5" /></button>
+            </div>
+            {manager && <div className="mt-3 rounded-xl bg-blue-50 px-3 py-2"><p className="text-[9px] font-semibold uppercase tracking-wider text-blue-500">Team manager</p><p className="mt-0.5 text-xs font-medium text-blue-900">{manager.name}</p></div>}
+            <div className="mt-3 space-y-2">{members.length ? members.map((member) => <div key={member.id} className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2"><div className="flex min-w-0 items-center gap-2"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[9px] font-semibold text-slate-600">{member.name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span><span className="truncate text-xs font-medium text-slate-700">{member.name}</span></div>{member.id === team.manager_id && <span className="text-[9px] font-semibold text-blue-500">Lead</span>}</div>) : <p className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-400">No members assigned</p>}</div>
+          </article>;
+        }) : <div className="col-span-full rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center"><UsersRound className="mx-auto h-5 w-5 text-slate-300" /><p className="mt-2 text-sm font-medium text-slate-600">No teams configured</p><p className="mt-1 text-xs text-slate-400">Create ROC, Secretarial, Annual Filing, or another team below.</p></div>}
+      </div>
+    </div>
+  );
+};
+
 export default function OrganizationManagement() {
   const queryClient = useQueryClient();
   const [profile, setProfile] = useState({ name: '', email: '', phone: '' });
   const [teamForm, setTeamForm] = useState({ name: '', manager_id: '', member_ids: [] });
+  const [editingTeamId, setEditingTeamId] = useState(null);
   const [roleForm, setRoleForm] = useState({ name: '', permissions: [] });
 
   const { data: org } = useQuery({ queryKey: ['organization'], queryFn: async () => (await api.get('/organizations/current')).data });
@@ -62,19 +94,25 @@ export default function OrganizationManagement() {
     onError: (error) => toast.error(error?.response?.data?.detail || 'Could not update workspace'),
   });
 
-  const createTeam = useMutation({
-    mutationFn: async () => (await api.post('/organizations/teams', {
+  const saveTeam = useMutation({
+    mutationFn: async () => {
+      const payload = {
       ...teamForm,
       manager_id: teamForm.manager_id || null,
-    })).data,
+      };
+      return editingTeamId
+        ? (await api.put(`/organizations/teams/${editingTeamId}`, payload)).data
+        : (await api.post('/organizations/teams', payload)).data;
+    },
     onSuccess: () => {
       setTeamForm({ name: '', manager_id: '', member_ids: [] });
+      setEditingTeamId(null);
       queryClient.invalidateQueries({ queryKey: ['teams'] });
       queryClient.invalidateQueries({ queryKey: ['hierarchy'] });
       queryClient.invalidateQueries({ queryKey: ['organization-summary'] });
-      toast.success('Team created');
+      toast.success(editingTeamId ? 'Team updated' : 'Team created');
     },
-    onError: (error) => toast.error(error?.response?.data?.detail || 'Could not create team'),
+    onError: (error) => toast.error(error?.response?.data?.detail || 'Could not save team'),
   });
 
   const createRole = useMutation({
@@ -95,6 +133,16 @@ export default function OrganizationManagement() {
     ...current,
     permissions: current.permissions.includes(permission) ? current.permissions.filter((item) => item !== permission) : [...current.permissions, permission],
   }));
+  const startEditingTeam = (team) => {
+    setEditingTeamId(team.id);
+    setTeamForm({ name: team.name, manager_id: team.manager_id || '', member_ids: team.member_ids || [] });
+  };
+  const cancelEditingTeam = () => {
+    setEditingTeamId(null);
+    setTeamForm({ name: '', manager_id: '', member_ids: [] });
+  };
+  const partners = hierarchy.filter((person) => person.role === 'partner');
+  const workspaceLeaders = partners.length ? partners : hierarchy.filter((person) => person.role === 'admin');
 
   return (
     <div className="page-transition space-y-6">
@@ -115,6 +163,10 @@ export default function OrganizationManagement() {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-2">
+        <Card className="xl:col-span-2" icon={GitBranch} title="Team structure" description="Partner-led teams with their managers and members. Every person shown belongs to this firm workspace.">
+          <TeamStructure organization={org} partners={workspaceLeaders} teams={teams} people={hierarchy} onEdit={startEditingTeam} />
+        </Card>
+
         <Card icon={Building2} title="Firm identity" description="This identity appears throughout the private workspace.">
           <form className="grid gap-3 sm:grid-cols-2" onSubmit={(event) => { event.preventDefault(); updateProfile.mutate(); }}>
             <label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-medium text-slate-600">Firm name</span><input className={inputCls} value={profile.name} onChange={(event) => setProfile({ ...profile, name: event.target.value })} required /></label>
@@ -124,20 +176,15 @@ export default function OrganizationManagement() {
           </form>
         </Card>
 
-        <Card icon={UsersRound} title="Create a team" description="Group firm members without exposing them to another tenant.">
-          <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); createTeam.mutate(); }}>
+        <Card icon={UsersRound} title={editingTeamId ? 'Edit team' : 'Create a team'} description="Group firm members without exposing them to another tenant.">
+          <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); saveTeam.mutate(); }}>
             <div className="grid gap-3 sm:grid-cols-2">
               <label><span className="mb-1.5 block text-xs font-medium text-slate-600">Team name</span><input className={inputCls} value={teamForm.name} onChange={(event) => setTeamForm({ ...teamForm, name: event.target.value })} placeholder="Secretarial Team" required /></label>
               <label><span className="mb-1.5 block text-xs font-medium text-slate-600">Team manager</span><select className={inputCls} value={teamForm.manager_id} onChange={(event) => setTeamForm({ ...teamForm, manager_id: event.target.value })}><option value="">No manager</option>{users.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             </div>
             <div><p className="mb-2 text-xs font-medium text-slate-600">Members</p><div className="grid max-h-32 gap-2 overflow-y-auto sm:grid-cols-2">{users.map((item) => <button type="button" key={item.id} onClick={() => toggleMember(item.id)} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs transition ${teamForm.member_ids.includes(item.id) ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}><span className={`flex h-4 w-4 items-center justify-center rounded ${teamForm.member_ids.includes(item.id) ? 'bg-blue-600 text-white' : 'border border-slate-300'}`}>{teamForm.member_ids.includes(item.id) && <Check className="h-3 w-3" />}</span><span className="truncate">{item.name}</span></button>)}</div></div>
-            <div className="flex justify-end"><button disabled={createTeam.isPending} className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50">Create team</button></div>
+            <div className="flex justify-end gap-2">{editingTeamId && <button type="button" onClick={cancelEditingTeam} className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"><X className="h-3.5 w-3.5" /> Cancel</button>}<button disabled={saveTeam.isPending} className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50">{editingTeamId ? 'Save team' : 'Create team'}</button></div>
           </form>
-        </Card>
-
-        <Card icon={GitBranch} title="Teams & reporting structure" description={`${teams.length} tenant-local team${teams.length === 1 ? '' : 's'} configured.`}>
-          <div className="space-y-2">{teams.length ? teams.map((team) => <div key={team.id} className="rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-3"><div className="flex items-center justify-between"><p className="text-sm font-medium text-slate-800">{team.name}</p><span className="text-[10px] text-slate-400">{team.member_ids?.length || 0} members</span></div></div>) : <p className="text-sm text-slate-500">No teams yet. Create the first team above.</p>}</div>
-          <div className="mt-4 border-t border-slate-100 pt-4"><p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">Reporting hierarchy</p><div className="space-y-2">{hierarchy.map((person) => <div key={person.id} className="flex justify-between gap-3 rounded-xl px-3 py-2 text-sm hover:bg-slate-50"><span className="truncate text-slate-700">{person.name}</span><span className="shrink-0 text-xs capitalize text-slate-400">{person.designation || 'Member'}</span></div>)}</div></div>
         </Card>
 
         <Card icon={ShieldCheck} title="Roles & permissions" description="Designation and system access remain separate.">

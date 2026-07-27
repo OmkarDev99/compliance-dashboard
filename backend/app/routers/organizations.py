@@ -46,6 +46,19 @@ async def _ensure_org_admin(user: User):
     if "can_manage_settings" not in permissions:
         raise HTTPException(status_code=403, detail="Missing required permission")
 
+async def _validated_team_members(data: TeamInput, organization_id: uuid.UUID):
+    ids = list(dict.fromkeys(data.member_ids))
+    if data.manager_id and data.manager_id not in ids:
+        ids.append(data.manager_id)
+    members = await User.find({
+        "_id": {"$in": ids},
+        "organization_id": organization_id,
+        "is_active": True,
+    }).to_list() if ids else []
+    if len(members) != len(ids):
+        raise HTTPException(status_code=400, detail="All team members must be active members of this workspace")
+    return ids, members
+
 @router.get("/current")
 async def current_organization(user: User = Depends(get_current_user)):
     if not user.organization_id:
@@ -111,18 +124,71 @@ async def create_team(data: TeamInput, user: User = Depends(get_current_user)):
     await _ensure_org_admin(user)
     if await Team.find_one({"organization_id": user.organization_id, "name": data.name}):
         raise HTTPException(status_code=400, detail="Team name already exists")
-    ids = [item for item in data.member_ids]
-    if data.manager_id and data.manager_id not in ids:
-        ids.append(data.manager_id)
-    members = await User.find({"_id": {"$in": ids}, "organization_id": user.organization_id}).to_list() if ids else []
-    if len(members) != len(set(ids)):
-        raise HTTPException(status_code=400, detail="All team members must belong to this organization")
+    ids, members = await _validated_team_members(data, user.organization_id)
     team = Team(organization_id=user.organization_id, **data.model_dump(exclude={"member_ids"}), member_ids=ids)
     await team.insert()
     for member in members:
         if team.id not in member.team_ids:
             member.team_ids.append(team.id)
             await member.save()
+    await AuditLog(
+        user_id=user.id,
+        organization_id=user.organization_id,
+        action="team_created",
+        entity_type="team",
+        entity_id=team.id,
+        action_metadata={"team_name": team.name, "member_count": len(team.member_ids)},
+    ).insert()
+    return team
+
+@router.put("/teams/{team_id}")
+async def update_team(team_id: uuid.UUID, data: TeamInput, user: User = Depends(get_current_user)):
+    await _ensure_org_admin(user)
+    team = await Team.get(team_id)
+    if not team or team.organization_id != user.organization_id:
+        raise HTTPException(status_code=404, detail="Team not found")
+    duplicate = await Team.find_one({
+        "organization_id": user.organization_id,
+        "name": data.name,
+        "_id": {"$ne": team_id},
+    })
+    if duplicate:
+        raise HTTPException(status_code=400, detail="Team name already exists")
+
+    ids, members = await _validated_team_members(data, user.organization_id)
+    previous_member_ids = set(team.member_ids)
+    next_member_ids = set(ids)
+    removed_ids = list(previous_member_ids - next_member_ids)
+    removed_members = await User.find({
+        "_id": {"$in": removed_ids},
+        "organization_id": user.organization_id,
+    }).to_list() if removed_ids else []
+    for member in removed_members:
+        member.team_ids = [item for item in member.team_ids if item != team.id]
+        await member.save()
+    for member in members:
+        if team.id not in member.team_ids:
+            member.team_ids.append(team.id)
+            await member.save()
+
+    old_name = team.name
+    team.name = data.name
+    team.description = data.description
+    team.manager_id = data.manager_id
+    team.member_ids = ids
+    await team.save()
+    await AuditLog(
+        user_id=user.id,
+        organization_id=user.organization_id,
+        action="team_updated",
+        entity_type="team",
+        entity_id=team.id,
+        action_metadata={
+            "old_name": old_name,
+            "new_name": team.name,
+            "member_count": len(team.member_ids),
+        },
+    ).insert()
     return team
 
 @router.get("/roles")
@@ -145,4 +211,12 @@ async def create_role(data: RoleInput, user: User = Depends(get_current_user)):
 @router.get("/hierarchy")
 async def hierarchy(user: User = Depends(get_current_user)):
     users = await User.find({"organization_id": user.organization_id, "is_active": True}).sort("full_name").to_list()
-    return [{"id": item.id, "name": item.full_name or item.email, "designation": item.designation, "reports_to": item.reports_to, "team_ids": item.team_ids} for item in users]
+    return [{
+        "id": item.id,
+        "name": item.full_name or item.email,
+        "email": item.email,
+        "role": item.role,
+        "designation": item.designation,
+        "reports_to": item.reports_to,
+        "team_ids": item.team_ids,
+    } for item in users]

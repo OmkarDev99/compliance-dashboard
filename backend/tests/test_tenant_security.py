@@ -13,7 +13,9 @@ from app.models.task import Task
 from app.models.user import User
 from app.services import scheduler
 from app.routers.admin import create_user
+from app.routers.organizations import TeamInput, update_team
 from app.schemas.user import UserCreate
+from app.models.team import Team
 
 
 @pytest.mark.asyncio
@@ -60,6 +62,24 @@ async def test_tenant_admin_cannot_create_platform_admin():
     assert error.value.status_code == 400
 
 
+@pytest.mark.asyncio
+async def test_team_from_another_workspace_cannot_be_edited(monkeypatch):
+    current_org = uuid.uuid4()
+    foreign_team = SimpleNamespace(organization_id=uuid.uuid4())
+    current_user = SimpleNamespace(
+        id=uuid.uuid4(),
+        organization_id=current_org,
+        permissions=["can_manage_settings"],
+        role_id=None,
+        role="admin",
+    )
+    monkeypatch.setattr(Team, "get", AsyncMock(return_value=foreign_team))
+
+    with pytest.raises(HTTPException) as error:
+        await update_team(uuid.uuid4(), TeamInput(name="ROC Team"), current_user)
+    assert error.value.status_code == 404
+
+
 class _Query:
     def __init__(self, values):
         self.values = values
@@ -70,7 +90,7 @@ class _Query:
 
 @pytest.mark.asyncio
 async def test_overdue_notifications_stay_inside_task_workspace(monkeypatch):
-    first_org, second_org = uuid.uuid4(), uuid.uuid4()
+    first_org = uuid.uuid4()
     assignee_id = uuid.uuid4()
     task = SimpleNamespace(
         id=uuid.uuid4(),
@@ -78,24 +98,15 @@ async def test_overdue_notifications_stay_inside_task_workspace(monkeypatch):
         organization_id=first_org,
         assigned_to=assignee_id,
         due_date=date.today() - timedelta(days=1),
-        status="upcoming",
-        status_manually_set=False,
-        save=AsyncMock(),
+        status="assigned",
     )
-    admins = [
-        SimpleNamespace(organization_id=first_org, email="admin@first.test"),
-        SimpleNamespace(organization_id=second_org, email="admin@second.test"),
-    ]
-    assignee = SimpleNamespace(organization_id=first_org, email="member@first.test", full_name="Member")
     monkeypatch.setattr(Task, "find", lambda *args, **kwargs: _Query([task]))
-    monkeypatch.setattr(User, "find", lambda *args, **kwargs: _Query(admins))
-    monkeypatch.setattr(User, "get", AsyncMock(return_value=assignee))
-    send_email = AsyncMock(return_value=True)
-    monkeypatch.setattr(scheduler, "send_overdue_email", send_email)
+    create_notification = AsyncMock(return_value=True)
+    monkeypatch.setattr(scheduler, "create_notification", create_notification)
 
     await scheduler.run_daily_compliance_check()
 
-    recipients = [call.kwargs["email"] for call in send_email.await_args_list]
-    assert "member@first.test" in recipients
-    assert "admin@first.test" in recipients
-    assert "admin@second.test" not in recipients
+    assert create_notification.await_count == 1
+    call = create_notification.await_args
+    assert call.kwargs["organization_id"] == first_org
+    assert call.kwargs["user_id"] == assignee_id
